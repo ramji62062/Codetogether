@@ -944,16 +944,78 @@ export default function RoomPage() {
   }, [activeFile, currentUserId, currentUserName]);
   const handleSyncStatus = useCallback((status: "synced" | "syncing" | "saved") => { setSyncStatus(status); }, []);
 
+  const handleApplyAiCode = useCallback((codeSnippet: string, targetFileName?: string) => {
+    const fileToUpdate = targetFileName || activeFile;
+    if (!fileToUpdate) return;
+    setFiles((prev) =>
+      prev.map((f) => normalizePath(f.path || f.name) === normalizePath(fileToUpdate) ? { ...f, content: codeSnippet } : f)
+    );
+    setModifiedFiles((prev) => new Set(prev).add(normalizePath(fileToUpdate)));
+    addToast(`Applied AI code to ${fileToUpdate}`, "success");
+  }, [activeFile, addToast]);
+
   const previewSrcDoc = useMemo(() => buildPreviewSrcDoc(files, activeFile), [files, activeFile]);
   const previewPath = useMemo(() => {
     const htmlFile = getPreviewHtmlFile(files, activeFile);
     return htmlFile?.path || htmlFile?.name || "";
   }, [files, activeFile]);
 
+  // Current file data
+  const currentFile = files.find((f) => normalizePath(f.path || f.name) === activeFile && !f.isFolder);
+  const currentCode = currentFile?.content || "";
+  const currentLang = currentFile?.language || language;
+
+  // ── Universal Project Preview State ──
+  const [previewMode, setPreviewMode] = useState<"web" | "console">("web");
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [consoleResult, setConsoleResult] = useState<{ loading: boolean; stdout: string; stderr: string; exitCode: number | null }>({
+    loading: false,
+    stdout: "",
+    stderr: "",
+    exitCode: null,
+  });
+
+  const runConsolePreview = useCallback(async () => {
+    const codeToRun = currentCode;
+    if (!codeToRun) return;
+    setConsoleResult(prev => ({ ...prev, loading: true }));
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+
+      const res = await fetch("/api/run-code", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ code: codeToRun, language: currentLang }),
+      });
+      const data = await res.json();
+      setConsoleResult({
+        loading: false,
+        stdout: data.stdout || "",
+        stderr: data.stderr || "",
+        exitCode: data.exitCode ?? 0,
+      });
+    } catch (err: any) {
+      setConsoleResult({
+        loading: false,
+        stdout: "",
+        stderr: err.message || "Execution error",
+        exitCode: 1,
+      });
+    }
+  }, [currentCode, currentLang]);
+
   const handlePreviewOpen = useCallback(() => {
     setPreviewFullscreen(false);
     setPreviewOpen(true);
-  }, []);
+    if (!previewSrcDoc) {
+      setPreviewMode("console");
+      runConsolePreview();
+    } else {
+      setPreviewMode("web");
+    }
+  }, [previewSrcDoc, runConsolePreview]);
 
   const handlePreviewClose = useCallback(() => {
     setPreviewOpen(false);
@@ -976,9 +1038,6 @@ export default function RoomPage() {
   }, []);
 
   // Current file data
-  const currentFile = files.find((f) => normalizePath(f.path || f.name) === activeFile && !f.isFolder);
-  const currentCode = currentFile?.content || "";
-  const currentLang = currentFile?.language || language;
   const visibleRemoteCursors = Object.values(remoteCursors);
 
   if (loading) {
@@ -1037,6 +1096,7 @@ export default function RoomPage() {
           currentCode={currentCode} isTeacher={room.created_by === currentUserId} hostUserId={room.created_by || undefined} onSaveWork={() => saveRef.current?.()}
           onSessionEnd={handleSessionEnd}
           onRemoveBreakpoint={(f, l) => setBreakpoints((prev) => prev.filter((bp) => !(bp.file === f && bp.line === l)))}
+          onApplyCode={handleApplyAiCode}
           micOn={micOn} cameraOn={cameraOn} screenOn={screenOn}
           isFullscreen={isFullscreen} onFullscreenChange={setIsFullscreen}
           onMicToggle={handleMicToggle} onCameraToggle={handleCameraToggle} onScreenToggle={handleScreenToggle}
@@ -1091,38 +1151,147 @@ export default function RoomPage() {
               display: "flex",
               flexDirection: "column",
               borderRadius: previewFullscreen ? 0 : 16,
-              boxShadow: previewFullscreen ? "none" : "0 32px 80px rgba(0,0,0,0.55)",
+              boxShadow: previewFullscreen ? "none" : "0 32px 80px rgba(0,0,0,0.7)",
               overflow: "hidden",
+              border: "1px solid #334155"
             }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "#111316", borderBottom: "1px solid #2a2a38" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Eye size={14} color="#fff" />
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#fff" }}>Website Preview</div>
-                    <div style={{ fontSize: 11, color: "#94a3b8" }}>{previewPath || "index.html"}</div>
+              {/* Header */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", background: "#0f172a", borderBottom: "1px solid #334155" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <Eye size={16} color="#c4b5fd" />
+                    <span style={{ fontSize: 13, fontWeight: 800, color: "#ffffff" }}>Project Output Preview</span>
+                  </div>
+
+                  {/* Mode Switcher */}
+                  <div style={{ display: "flex", background: "#1e293b", borderRadius: 8, padding: 2, border: "1px solid #334155" }}>
+                    <button
+                      onClick={() => setPreviewMode("web")}
+                      style={{
+                        padding: "4px 12px",
+                        borderRadius: 6,
+                        border: "none",
+                        background: previewMode === "web" ? "#7C3AED" : "transparent",
+                        color: previewMode === "web" ? "#ffffff" : "#94a3b8",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      🌐 Web View {previewSrcDoc ? "" : "(No HTML)"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setPreviewMode("console");
+                        if (!consoleResult.stdout && !consoleResult.stderr && !consoleResult.loading) {
+                          runConsolePreview();
+                        }
+                      }}
+                      style={{
+                        padding: "4px 12px",
+                        borderRadius: 6,
+                        border: "none",
+                        background: previewMode === "console" ? "#7C3AED" : "transparent",
+                        color: previewMode === "console" ? "#ffffff" : "#94a3b8",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      📟 Live Output / Console
+                    </button>
                   </div>
                 </div>
+
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <button onClick={togglePreviewFullscreen} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", background: "#252b38", border: "1px solid #383f4d", borderRadius: 6, color: "#e2e8f0", cursor: "pointer", fontSize: 11 }}>
+                  {previewMode === "web" && (
+                    <button
+                      onClick={() => setIsMobileViewport(!isMobileViewport)}
+                      style={{ padding: "5px 10px", background: isMobileViewport ? "#7C3AED22" : "#1e293b", border: "1px solid #334155", borderRadius: 6, color: isMobileViewport ? "#c4b5fd" : "#e2e8f0", cursor: "pointer", fontSize: 11, fontWeight: 600 }}
+                    >
+                      {isMobileViewport ? "📱 Mobile View (375px)" : "🖥 Desktop View (100%)"}
+                    </button>
+                  )}
+
+                  {previewMode === "console" && (
+                    <button
+                      onClick={runConsolePreview}
+                      disabled={consoleResult.loading}
+                      style={{ padding: "5px 12px", background: "#7C3AED", border: "none", borderRadius: 6, color: "#ffffff", cursor: "pointer", fontSize: 11, fontWeight: 800 }}
+                    >
+                      {consoleResult.loading ? "Running..." : "🔄 Re-run Output"}
+                    </button>
+                  )}
+
+                  <button onClick={togglePreviewFullscreen} style={{ padding: "5px 10px", background: "#1e293b", border: "1px solid #334155", borderRadius: 6, color: "#e2e8f0", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
                     {previewFullscreen ? "Exit Full Screen" : "Full Screen"}
                   </button>
-                  <button onClick={handlePreviewClose} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", background: "#ef4444", border: "none", borderRadius: 6, color: "#fff", cursor: "pointer", fontSize: 11 }}>
-                    Close
+                  <button onClick={handlePreviewClose} style={{ padding: "5px 12px", background: "#ef4444", border: "none", borderRadius: 6, color: "#fff", cursor: "pointer", fontSize: 11, fontWeight: 800 }}>
+                    ✕ Close
                   </button>
                 </div>
               </div>
-              <div style={{ flex: 1, position: "relative", background: "#0b0c11" }}>
-                {previewSrcDoc ? (
-                  <iframe
-                    sandbox="allow-scripts allow-same-origin"
-                    srcDoc={previewSrcDoc}
-                    title="CodeTogether Website Preview"
-                    style={{ width: "100%", height: "100%", border: "none", background: "#020204" }}
-                  />
+
+              {/* Body */}
+              <div style={{ flex: 1, position: "relative", background: "#0b0c11", display: "flex", justifyContent: "center", alignItems: "center", overflow: "auto" }}>
+                {previewMode === "web" ? (
+                  previewSrcDoc ? (
+                    <div style={{ width: isMobileViewport ? "375px" : "100%", height: "100%", transition: "all 0.2s", boxShadow: isMobileViewport ? "0 0 40px rgba(0,0,0,0.8)" : "none", border: isMobileViewport ? "12px solid #111827" : "none", borderRadius: isMobileViewport ? 24 : 0, overflow: "hidden", margin: "auto" }}>
+                      <iframe
+                        sandbox="allow-scripts allow-same-origin"
+                        srcDoc={previewSrcDoc}
+                        title="CodeTogether Website Preview"
+                        style={{ width: "100%", height: "100%", border: "none", background: "#ffffff" }}
+                      />
+                    </div>
+                  ) : (
+                    <div style={{ padding: 32, textAlign: "center", color: "#f8fafc", maxWidth: 480 }}>
+                      <div style={{ fontSize: 32, marginBottom: 12 }}>🌐</div>
+                      <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 8, color: "#fff" }}>No HTML File Found in Workspace</h3>
+                      <p style={{ fontSize: 13, color: "#94a3b8", marginBottom: 20, lineHeight: 1.6 }}>
+                        This project is a non-HTML or CLI program ({currentLang}). Switch to <strong>Live Output / Console</strong> mode to view execution results.
+                      </p>
+                      <button
+                        onClick={() => {
+                          setPreviewMode("console");
+                          runConsolePreview();
+                        }}
+                        style={{ padding: "10px 20px", background: "#7C3AED", border: "none", borderRadius: 8, color: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer" }}
+                      >
+                        📟 View Console Execution Output →
+                      </button>
+                    </div>
+                  )
                 ) : (
-                  <div style={{ padding: 24, color: "#cbd5e1", fontSize: 13 }}>
-                    <div style={{ marginBottom: 8, fontWeight: 700 }}>No website preview available.</div>
-                    <div>Open or create an HTML file in the workspace, then click Preview again.</div>
+                  /* Console Output Mode */
+                  <div style={{ width: "100%", height: "100%", padding: 20, display: "flex", flexDirection: "column", boxSizing: "border-box", background: "#09090b" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, paddingBottom: 10, borderBottom: "1px solid #1e293b" }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "#c4b5fd" }}>
+                        Console Execution Output ({activeFile || currentLang})
+                      </div>
+                      <div style={{ fontSize: 11, color: consoleResult.exitCode === 0 ? "#4ade80" : "#f87171", fontWeight: 700 }}>
+                        {consoleResult.loading ? "Executing..." : consoleResult.exitCode === 0 ? "✓ Exit Code 0 (Success)" : `Exit Code ${consoleResult.exitCode ?? 1}`}
+                      </div>
+                    </div>
+
+                    <div style={{ flex: 1, overflow: "auto", background: "#000000", border: "1px solid #1e293b", borderRadius: 8, padding: 16, fontFamily: "monospace", fontSize: 13, lineHeight: 1.6 }}>
+                      {consoleResult.loading ? (
+                        <div style={{ color: "#c4b5fd", display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ animation: "spin 1s linear infinite", display: "inline-block" }}>⚡</span> Running code across workspace...
+                        </div>
+                      ) : consoleResult.stdout || consoleResult.stderr ? (
+                        <>
+                          {consoleResult.stdout && (
+                            <pre style={{ margin: 0, color: "#f8fafc", whiteSpace: "pre-wrap" }}>{consoleResult.stdout}</pre>
+                          )}
+                          {consoleResult.stderr && (
+                            <pre style={{ margin: "8px 0 0", color: "#f87171", whiteSpace: "pre-wrap" }}>{consoleResult.stderr}</pre>
+                          )}
+                        </>
+                      ) : (
+                        <div style={{ color: "#64748b" }}>No output returned from execution.</div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

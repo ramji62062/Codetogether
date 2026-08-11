@@ -31,6 +31,78 @@ const ROLE_CONFIG: Record<string, { icon: any; color: string; label: string; gre
 const LANGS = ["javascript","typescript","python","java","cpp","c","go","rust","html","css","shell","php","ruby","csharp","kotlin","swift","r","lua"];
 const CATEGORIES = ["All", "Tutorials", "Algorithms", "Templates", "Web Pages", "Others"];
 
+function getRoomTitle(room: any): string {
+  if (!room) return "Untitled Workspace";
+  if (room.meta && typeof room.meta === "object" && room.meta.title) {
+    const t = String(room.meta.title).trim();
+    if (t && !t.startsWith("{")) return t;
+  }
+  const nameStr = typeof room.name === "string" ? room.name.trim() : "";
+  if (nameStr.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(nameStr);
+      if (parsed && parsed.title && typeof parsed.title === "string") {
+        return parsed.title;
+      }
+    } catch {}
+  }
+  if (!nameStr) return "Untitled Workspace";
+  return nameStr;
+}
+
+function getRoomDescription(room: any): string {
+  if (room?.meta?.description) return room.meta.description;
+  const nameStr = typeof room?.name === "string" ? room.name : "";
+  if (nameStr.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(nameStr);
+      if (parsed?.description) return parsed.description;
+    } catch {}
+  }
+  return "";
+}
+
+function getRoomAuthor(room: any): string {
+  if (room?.meta?.authorName) return room.meta.authorName;
+  const nameStr = typeof room?.name === "string" ? room.name : "";
+  if (nameStr.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(nameStr);
+      if (parsed?.authorName) return parsed.authorName;
+    } catch {}
+  }
+  return "Anonymous";
+}
+
+function getRoomCategory(room: any): string {
+  if (room?.meta?.category) return room.meta.category;
+  const nameStr = typeof room?.name === "string" ? room.name : "";
+  if (nameStr.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(nameStr);
+      if (parsed?.category) return parsed.category;
+    } catch {}
+  }
+  return "Tutorials";
+}
+
+function getRoomScheduleDetails(roomName: string | null) {
+  if (roomName && roomName.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(roomName);
+      if (parsed.isScheduled) {
+        return {
+          isScheduled: true,
+          startAt: parsed.startAt,
+          endAt: parsed.endAt,
+          invitedEmails: parsed.invitedEmails || [],
+        };
+      }
+    } catch {}
+  }
+  return { isScheduled: false, startAt: null, endAt: null, invitedEmails: [] };
+}
+
 // Pure JS uncompressed ZIP generator helper
 function downloadProjectAsZip(projectName: string, files: any[]) {
   const textEncoder = new TextEncoder();
@@ -113,34 +185,6 @@ function downloadProjectAsZip(projectName: string, files: any[]) {
   URL.revokeObjectURL(a.href);
 }
 
-function getRoomDisplayName(roomName: string | null): string {
-  if (!roomName) return "Untitled Workspace";
-  if (roomName.startsWith("{")) {
-    try {
-      const parsed = JSON.parse(roomName);
-      if (parsed.title) return parsed.title;
-    } catch {}
-  }
-  return roomName;
-}
-
-function getRoomScheduleDetails(roomName: string | null) {
-  if (roomName && roomName.startsWith("{")) {
-    try {
-      const parsed = JSON.parse(roomName);
-      if (parsed.isScheduled) {
-        return {
-          isScheduled: true,
-          startAt: parsed.startAt,
-          endAt: parsed.endAt,
-          invitedEmails: parsed.invitedEmails || [],
-        };
-      }
-    } catch {}
-  }
-  return { isScheduled: false, startAt: null, endAt: null, invitedEmails: [] };
-}
-
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<AppUser | null>(null);
@@ -150,7 +194,6 @@ export default function DashboardPage() {
   const [creating, setCreating] = useState(false);
   const [joinInput, setJoinInput] = useState("");
   const [search, setSearch] = useState("");
-  const [newRoomLang, setNewRoomLang] = useState("javascript");
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [joinAccessCode, setJoinAccessCode] = useState("");
   const [joinError, setJoinError] = useState("");
@@ -184,7 +227,6 @@ export default function DashboardPage() {
   const [isScheduled, setIsScheduled] = useState(false);
   const [startAt, setStartAt] = useState("");
   const [endAt, setEndAt] = useState("");
-  const [invitedEmails, setInvitedEmails] = useState("");
 
   // Library & Unlock States
   const [librarySearch, setLibrarySearch] = useState("");
@@ -225,7 +267,7 @@ export default function DashboardPage() {
           meta = { title: r.name || "Workspace", isPrivate: false, isLibrary: false, category: "Others" };
         }
         return { ...r, meta };
-      }).filter((r) => r.meta?.isLibrary);
+      }).filter((r) => r.meta?.isLibrary || r.meta?.isPrivate || r.name?.startsWith("{"));
       setLibraryRooms(parsed);
     }
   }, []);
@@ -523,7 +565,7 @@ export default function DashboardPage() {
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session.access_token}` },
         body: JSON.stringify({
           createdBy: user.id,
-          roomName: `${item.meta?.title || "Cloned Workspace"}`,
+          roomName: getRoomTitle(item),
           language: item.language,
           files: item.files_json,
         }),
@@ -569,16 +611,16 @@ export default function DashboardPage() {
   const cfg = ROLE_CONFIG[user?.role || "student"] || ROLE_CONFIG.student;
   const RoleIcon = cfg.icon;
 
-  const filtered = rooms.filter(r => getRoomDisplayName(r.name).toLowerCase().includes(search.toLowerCase()) || r.room_code.includes(search.toUpperCase()));
+  const filtered = rooms.filter(r => getRoomTitle(r).toLowerCase().includes(search.toLowerCase()) || r.room_code.includes(search.toUpperCase()));
 
   const sharedLibraryRooms = libraryRooms.filter((item) => !item.meta?.isPrivate);
-  const privateLibraryRooms = libraryRooms.filter((item) => item.meta?.isPrivate);
+  const privateLibraryRooms = libraryRooms.filter((item) => item.meta?.isPrivate || item.name?.includes('"isPrivate":true'));
 
   const filteredSharedLibrary = sharedLibraryRooms.filter((item) => {
-    const title = item.meta?.title || item.name || "";
-    const description = item.meta?.description || "";
-    const category = item.meta?.category || "Others";
-    const author = item.meta?.authorName || "Anonymous";
+    const title = getRoomTitle(item);
+    const description = getRoomDescription(item);
+    const category = getRoomCategory(item);
+    const author = getRoomAuthor(item);
     const lang = item.language || "";
 
     const matchesSearch =
@@ -595,10 +637,9 @@ export default function DashboardPage() {
   });
 
   const filteredPrivateLibrary = privateLibraryRooms.filter((item) => {
-    const title = item.meta?.title || item.name || "";
-    const description = item.meta?.description || "";
-    const category = item.meta?.category || "Others";
-    const author = item.meta?.authorName || "Anonymous";
+    const title = getRoomTitle(item);
+    const description = getRoomDescription(item);
+    const author = getRoomAuthor(item);
     const lang = item.language || "";
 
     const matchesSearch =
@@ -619,35 +660,35 @@ export default function DashboardPage() {
     );
   });
 
-  const LANG_COLORS: Record<string, string> = { javascript: "#f1e05a", typescript: "#3178c6", python: "#3572A5", java: "#b07219", go: "#00ADD8", rust: "#dea584", html: "#e34c26", css: "#563d7c", cpp: "#f34b7d" };
+  const LANG_COLORS: Record<string, string> = { javascript: "#f1e05a", typescript: "#3178c6", python: "#3572A5", java: "#b07219", go: "#00ADD8", rust: "#dea584", html: "#e34c26", css: "#563d7c", cpp: "#f34b7d", ruby: "#701516" };
 
   if (loading) return (
     <div style={{ minHeight: "100vh", background: "#080810", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ textAlign: "center" }}>
         <div style={{ width: 48, height: 48, borderRadius: "50%", border: "3px solid #7C3AED33", borderTop: "3px solid #7C3AED", animation: "spin 1s linear infinite", margin: "0 auto 16px" }} />
-        <p style={{ color: "#666", fontSize: 14 }}>Loading your dashboard...</p>
+        <p style={{ color: "#94a3b8", fontSize: 14, fontWeight: 600 }}>Loading your dashboard...</p>
       </div>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 
   return (
-    <div style={{ minHeight: "100vh", background: "#080810", color: "#e0e0e0", fontFamily: "Inter, sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "#080810", color: "#f8fafc", fontFamily: "Inter, sans-serif" }}>
       {/* Top navbar */}
       <header className="glass-header animate-slide-up" style={{ height: 60, borderBottom: "1px solid #1a1a2e", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 28px", position: "sticky", top: 0, zIndex: 100 }}>
-        <Link href="/" style={{ fontSize: 20, fontWeight: 900, color: "#7C3AED", textDecoration: "none" }}>
+        <Link href="/" style={{ fontSize: 20, fontWeight: 900, color: "#ffffff", textDecoration: "none" }}>
           Code<span style={{ color: "#c4b5fd" }}>Together</span>
         </Link>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: cfg.color + "15", border: `1px solid ${cfg.color}30`, borderRadius: 20, padding: "5px 12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: cfg.color + "22", border: `1px solid ${cfg.color}55`, borderRadius: 20, padding: "5px 14px" }}>
             <RoleIcon size={14} color={cfg.color}/>
-            <span style={{ fontSize: 12, color: cfg.color, fontWeight: 700 }}>{cfg.label}</span>
+            <span style={{ fontSize: 12, color: "#ffffff", fontWeight: 800 }}>{cfg.label}</span>
           </div>
-          <div style={{ width: 34, height: 34, borderRadius: "50%", background: "linear-gradient(135deg,#7C3AED,#5b21b6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: "#fff" }}>
+          <div style={{ width: 34, height: 34, borderRadius: "50%", background: "linear-gradient(135deg,#7C3AED,#5b21b6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: "#fff" }}>
             {(user?.name || user?.email || "U").charAt(0).toUpperCase()}
           </div>
           <button onClick={async () => { await supabase.auth.signOut(); router.push("/"); }}
-            style={{ background: "none", border: "1px solid #222", borderRadius: 8, padding: "6px 12px", color: "#666", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
+            style={{ background: "none", border: "1px solid #334155", borderRadius: 8, padding: "6px 14px", color: "#cbd5e1", cursor: "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
             <LogOut size={14}/> Logout
           </button>
         </div>
@@ -656,76 +697,42 @@ export default function DashboardPage() {
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 24px" }}>
         {/* Welcome */}
         <div className="animate-slide-up" style={{ marginBottom: 30 }}>
-          <h1 style={{ fontSize: "clamp(24px,4vw,36px)", fontWeight: 900, letterSpacing: "-0.5px" }}>
+          <h1 style={{ fontSize: "clamp(26px,4vw,38px)", fontWeight: 900, letterSpacing: "-0.5px", color: "#ffffff" }}>
             {cfg.greeting}, <span style={{ color: cfg.color }}>{user?.name?.split(" ")[0] || "there"}</span> <span className="animate-float" style={{ display: "inline-block" }}>👋</span>
           </h1>
-          <p style={{ color: "#555", fontSize: 15, marginTop: 6 }}>
+          <p style={{ color: "#94a3b8", fontSize: 15, marginTop: 6, fontWeight: 500 }}>
             {user?.email} · {rooms.length} workspace{rooms.length !== 1 ? "s" : ""}
           </p>
         </div>
 
         {/* Tab Selection */}
         <div className="animate-slide-up delay-100" style={{ display: "flex", gap: 8, borderBottom: "1px solid #1a1a2e", paddingBottom: 12, marginBottom: 30, flexWrap: "wrap" }}>
-          <button
-            onClick={() => setActiveTab("workspaces")}
-            style={{
-              padding: "10px 18px", background: activeTab === "workspaces" ? "#7C3AED18" : "transparent",
-              color: activeTab === "workspaces" ? "#c4b5fd" : "#666", border: activeTab === "workspaces" ? "1px solid #7C3AED44" : "none",
-              borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all 0.2s"
-            }}
-          >
-            My Workspaces
-          </button>
-          <button
-            onClick={() => setActiveTab("shared_library")}
-            style={{
-              padding: "10px 18px", background: activeTab === "shared_library" ? "#7C3AED18" : "transparent",
-              color: activeTab === "shared_library" ? "#c4b5fd" : "#666", border: activeTab === "shared_library" ? "1px solid #7C3AED44" : "none",
-              borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all 0.2s"
-            }}
-          >
-            🌐 Shared Library (Public)
-          </button>
-          <button
-            onClick={() => setActiveTab("private_library")}
-            style={{
-              padding: "10px 18px", background: activeTab === "private_library" ? "#7C3AED18" : "transparent",
-              color: activeTab === "private_library" ? "#c4b5fd" : "#666", border: activeTab === "private_library" ? "1px solid #7C3AED44" : "none",
-              borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all 0.2s"
-            }}
-          >
-            🔒 Private Library (Access Code)
-          </button>
-          <button
-            onClick={() => setActiveTab("community")}
-            style={{
-              padding: "10px 18px", background: activeTab === "community" ? "#7C3AED18" : "transparent",
-              color: activeTab === "community" ? "#c4b5fd" : "#666", border: activeTab === "community" ? "1px solid #7C3AED44" : "none",
-              borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all 0.2s"
-            }}
-          >
-            Community
-          </button>
-          <button
-            onClick={() => setActiveTab("account")}
-            style={{
-              padding: "10px 18px", background: activeTab === "account" ? "#7C3AED18" : "transparent",
-              color: activeTab === "account" ? "#c4b5fd" : "#666", border: activeTab === "account" ? "1px solid #7C3AED44" : "none",
-              borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all 0.2s"
-            }}
-          >
-            My Profile
-          </button>
-          <button
-            onClick={() => setActiveTab("progress")}
-            style={{
-              padding: "10px 18px", background: activeTab === "progress" ? "#7C3AED18" : "transparent",
-              color: activeTab === "progress" ? "#c4b5fd" : "#666", border: activeTab === "progress" ? "1px solid #7C3AED44" : "none",
-              borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all 0.2s"
-            }}
-          >
-            Progress Tracking
-          </button>
+          {[
+            { id: "workspaces", label: "My Workspaces" },
+            { id: "shared_library", label: "🌐 Shared Library (Public)" },
+            { id: "private_library", label: "🔒 Private Library (Access Code)" },
+            { id: "community", label: "Community" },
+            { id: "account", label: "My Profile" },
+            { id: "progress", label: "Progress Tracking" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              style={{
+                padding: "10px 18px",
+                background: activeTab === tab.id ? "#7C3AED25" : "transparent",
+                color: activeTab === tab.id ? "#ffffff" : "#94a3b8",
+                border: activeTab === tab.id ? "1px solid #7C3AED66" : "1px solid transparent",
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: "pointer",
+                transition: "all 0.2s"
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         {activeTab === "workspaces" && (
@@ -735,18 +742,18 @@ export default function DashboardPage() {
               {/* Create room trigger card */}
               <div className="glass-panel hover-card-glow" style={{ borderRadius: 20, padding: 24, display: "flex", flexDirection: "column", gap: 12, justifyContent: "space-between" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, background: "#7C3AED20", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Plus size={18} color="#7C3AED"/>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: "#7C3AED30", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Plus size={18} color="#c4b5fd"/>
                   </div>
-                  <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Create Workspace</h3>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0, color: "#ffffff" }}>Create Workspace</h3>
                 </div>
 
-                <p style={{ fontSize: 13, color: "#888", lineHeight: 1.5, margin: 0 }}>
+                <p style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.5, margin: 0 }}>
                   Build public or private workspaces with custom name, language, and access code.
                 </p>
 
                 <button onClick={() => setShowCreateModal(true)}
-                  style={{ width: "100%", padding: "11px", background: "linear-gradient(135deg,#7C3AED,#5b21b6)", border: "none", borderRadius: 10, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                  style={{ width: "100%", padding: "11px", background: "linear-gradient(135deg,#7C3AED,#5b21b6)", border: "none", borderRadius: 10, color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                   <Plus size={16} /> + New Workspace
                 </button>
               </div>
@@ -757,34 +764,34 @@ export default function DashboardPage() {
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: "#4ade8020", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <Hash size={18} color="#4ade80"/>
                   </div>
-                  <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Join via Code</h3>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0, color: "#ffffff" }}>Join via Code</h3>
                 </div>
                 <input value={joinInput} onChange={e => setJoinInput(e.target.value.toUpperCase())} onKeyDown={e => e.key === "Enter" && handleJoin()}
                   placeholder="Enter code e.g. XK9P2M"
-                  style={{ width: "100%", background: "#111", border: "1px solid #222", borderRadius: 8, padding: "8px 12px", color: "#fff", fontSize: 14, letterSpacing: 2, fontWeight: 700, outline: "none", marginBottom: 12, boxSizing: "border-box" }}
+                  style={{ width: "100%", background: "#111827", border: "1px solid #334155", borderRadius: 8, padding: "8px 12px", color: "#fff", fontSize: 14, letterSpacing: 2, fontWeight: 800, outline: "none", marginBottom: 12, boxSizing: "border-box" }}
                 />
                 <input value={joinAccessCode} onChange={e => setJoinAccessCode(e.target.value)} onKeyDown={e => e.key === "Enter" && handleJoin()}
                   placeholder="Access code for private rooms"
-                  style={{ width: "100%", background: "#111", border: "1px solid #222", borderRadius: 8, padding: "8px 12px", color: "#fff", fontSize: 13, outline: "none", marginBottom: 10, boxSizing: "border-box" }}
+                  style={{ width: "100%", background: "#111827", border: "1px solid #334155", borderRadius: 8, padding: "8px 12px", color: "#fff", fontSize: 13, outline: "none", marginBottom: 10, boxSizing: "border-box" }}
                 />
-                {joinError && <p style={{ color: "#f87171", fontSize: 12, margin: "0 0 10px" }}>{joinError}</p>}
+                {joinError && <p style={{ color: "#f87171", fontSize: 12, margin: "0 0 10px", fontWeight: 600 }}>{joinError}</p>}
                 <button onClick={handleJoin}
-                  style={{ width: "100%", padding: "10px", background: "#4ade8020", border: "1px solid #4ade8044", borderRadius: 10, color: "#4ade80", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+                  style={{ width: "100%", padding: "10px", background: "#4ade8025", border: "1px solid #4ade8066", borderRadius: 10, color: "#4ade80", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
                   Join Room →
                 </button>
               </div>
 
               {/* Stats card */}
               <div className="glass-panel hover-card-glow" style={{ borderRadius: 20, padding: 24 }}>
-                <h3 style={{ fontSize: 14, color: "#555", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 20 }}>Your Stats</h3>
+                <h3 style={{ fontSize: 13, color: "#94a3b8", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 20 }}>Your Stats</h3>
                 {[
-                  { label: "Workspaces", value: rooms.length, color: "#7C3AED" },
+                  { label: "Workspaces", value: rooms.length, color: "#c4b5fd" },
                   { label: "Account Type", value: cfg.label, color: cfg.color },
                   { label: "Status", value: "Active", color: "#4ade80" },
                 ].map(s => (
-                  <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #111" }}>
-                    <span style={{ color: "#666", fontSize: 13 }}>{s.label}</span>
-                    <span style={{ color: s.color, fontWeight: 700, fontSize: 14 }}>{s.value}</span>
+                  <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #1e293b" }}>
+                    <span style={{ color: "#cbd5e1", fontSize: 13, fontWeight: 500 }}>{s.label}</span>
+                    <span style={{ color: s.color, fontWeight: 800, fontSize: 14 }}>{s.value}</span>
                   </div>
                 ))}
               </div>
@@ -793,20 +800,20 @@ export default function DashboardPage() {
             {/* Workspace list */}
             <div className="animate-slide-up delay-300">
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
-                <h2 style={{ fontSize: 20, fontWeight: 800 }}>My Workspaces</h2>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#0d0d1a", border: "1px solid #1a1a2e", borderRadius: 10, padding: "8px 14px" }}>
-                  <Search size={14} color="#555"/>
+                <h2 style={{ fontSize: 20, fontWeight: 800, color: "#ffffff" }}>My Workspaces</h2>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#0d0d1a", border: "1px solid #334155", borderRadius: 10, padding: "8px 14px" }}>
+                  <Search size={14} color="#94a3b8"/>
                   <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search workspaces..."
-                    style={{ background: "none", border: "none", outline: "none", color: "#ccc", fontSize: 13, width: 180 }}
+                    style={{ background: "none", border: "none", outline: "none", color: "#ffffff", fontSize: 13, width: 180, fontWeight: 500 }}
                   />
                 </div>
               </div>
 
               {filtered.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "60px 20px", background: "#0d0d1a", borderRadius: 20, border: "1px dashed #1a1a2e" }}>
-                  <Layers size={40} color="#333" style={{ margin: "0 auto 16px" }}/>
-                  <p style={{ color: "#555", fontSize: 15, marginBottom: 16 }}>No workspaces yet</p>
-                  <button onClick={() => setShowCreateModal(true)} style={{ padding: "10px 24px", background: "#7C3AED", border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, cursor: "pointer" }}>
+                <div style={{ textAlign: "center", padding: "60px 20px", background: "#0d0d1a", borderRadius: 20, border: "1px dashed #334155" }}>
+                  <Layers size={40} color="#64748b" style={{ margin: "0 auto 16px" }}/>
+                  <p style={{ color: "#cbd5e1", fontSize: 15, marginBottom: 16, fontWeight: 600 }}>No workspaces found</p>
+                  <button onClick={() => setShowCreateModal(true)} style={{ padding: "10px 24px", background: "#7C3AED", border: "none", borderRadius: 10, color: "#fff", fontWeight: 800, cursor: "pointer" }}>
                     Create your first room
                   </button>
                 </div>
@@ -814,73 +821,63 @@ export default function DashboardPage() {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 16 }}>
                   {filtered.map((room, index) => {
                     const schedule = getRoomScheduleDetails(room.name);
-                    const displayName = getRoomDisplayName(room.name);
+                    const displayName = getRoomTitle(room);
 
                     return (
-                      <div key={room.id} className="glass-panel hover-card-glow animate-slide-up" style={{ animationDelay: `${300 + index * 50}ms`, borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", gap: 14, cursor: "pointer", position: "relative" }}>
+                      <div key={room.id} className="glass-panel hover-card-glow animate-slide-up" style={{ animationDelay: `${200 + index * 40}ms`, borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", gap: 14, cursor: "pointer", position: "relative" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                           <div>
                             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
-                              <h3 style={{ fontWeight: 700, fontSize: 15, margin: 0 }}>{displayName}</h3>
+                              <h3 style={{ fontWeight: 800, fontSize: 16, margin: 0, color: "#ffffff" }}>{displayName}</h3>
                               {schedule.isScheduled && (
-                                <span style={{ fontSize: 10, background: "#7C3AED20", color: "#c4b5fd", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>
+                                <span style={{ fontSize: 10, background: "#7C3AED30", color: "#c4b5fd", padding: "2px 6px", borderRadius: 4, fontWeight: 800 }}>
                                   Scheduled
                                 </span>
                               )}
                             </div>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <span style={{ width: 8, height: 8, borderRadius: "50%", background: LANG_COLORS[room.language] || "#888", display: "inline-block" }}/>
-                              <span style={{ fontSize: 12, color: "#555" }}>{room.language}</span>
+                              <span style={{ fontSize: 12, color: "#cbd5e1", fontWeight: 600 }}>{room.language}</span>
                             </div>
                           </div>
-                          <button onClick={() => handleDelete(room.id)} style={{ background: "none", border: "none", color: "#333", cursor: "pointer", padding: 4, borderRadius: 6, transition: "color 0.15s" }}
+                          <button onClick={(e) => { e.stopPropagation(); handleDelete(room.id); }} style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", padding: 4, borderRadius: 6, transition: "color 0.15s" }}
                             onMouseOver={e => (e.currentTarget as HTMLElement).style.color = "#f47"}
-                            onMouseOut={e => (e.currentTarget as HTMLElement).style.color = "#333"}>
-                            <Trash2 size={14}/>
+                            onMouseOut={e => (e.currentTarget as HTMLElement).style.color = "#64748b"}>
+                            <Trash2 size={15}/>
                           </button>
                         </div>
 
                         {schedule.isScheduled && (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 4, background: "#111", padding: 10, borderRadius: 10, border: "1px solid #222", fontSize: 11, color: "#aaa" }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 4, background: "#111827", padding: 10, borderRadius: 10, border: "1px solid #334155", fontSize: 11, color: "#cbd5e1" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                              <Calendar size={11} color="#7C3AED" />
+                              <Calendar size={11} color="#c4b5fd" />
                               <span>Starts: {new Date(schedule.startAt!).toLocaleString()}</span>
                             </div>
                             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                              <Clock size={11} color="#7C3AED" />
+                              <Clock size={11} color="#c4b5fd" />
                               <span>Ends: {new Date(schedule.endAt!).toLocaleString()}</span>
                             </div>
-                            {schedule.invitedEmails.length > 0 && (
-                              <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4, alignItems: "center" }}>
-                                <Mail size={10} color="#555" />
-                                {schedule.invitedEmails.map((email: string) => (
-                                  <span key={email} style={{ fontSize: 9, background: "#222", color: "#888", padding: "1px 5px", borderRadius: 4 }}>
-                                    {email}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
                           </div>
                         )}
 
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#111", borderRadius: 8, padding: "5px 10px", border: "1px solid #1a1a2e" }}>
-                            <Hash size={11} color="#555"/>
-                            <span style={{ fontSize: 12, fontFamily: "monospace", fontWeight: 700, letterSpacing: 2, color: "#ccc" }}>{room.room_code}</span>
-                            <button onClick={() => copyCode(room.room_code)} style={{ background: "none", border: "none", cursor: "pointer", color: "#555", padding: 0, display: "flex" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#111827", borderRadius: 8, padding: "5px 10px", border: "1px solid #334155" }}>
+                            <Hash size={11} color="#94a3b8"/>
+                            <span style={{ fontSize: 12, fontFamily: "monospace", fontWeight: 800, letterSpacing: 2, color: "#ffffff" }}>{room.room_code}</span>
+                            <button onClick={(e) => { e.stopPropagation(); copyCode(room.room_code); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: 0, display: "flex" }}>
                               {copiedCode === room.room_code ? <Check size={11} color="#4ade80"/> : <Copy size={11}/>}
                             </button>
                           </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 5, color: "#555", fontSize: 11 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 5, color: "#94a3b8", fontSize: 11, fontWeight: 500 }}>
                             <Clock size={11}/>
                             {new Date(room.created_at).toLocaleDateString()}
                           </div>
                         </div>
 
                         <button onClick={() => router.push(`/room/${room.id}`)}
-                          style={{ padding: "9px", background: "#7C3AED18", border: "1px solid #7C3AED33", borderRadius: 10, color: "#c4b5fd", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.15s" }}
+                          style={{ padding: "10px", background: "#7C3AED25", border: "1px solid #7C3AED55", borderRadius: 10, color: "#c4b5fd", fontSize: 13, fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.15s" }}
                           onMouseOver={e => { (e.currentTarget as HTMLElement).style.background = "#7C3AED"; (e.currentTarget as HTMLElement).style.color = "#fff"; }}
-                          onMouseOut={e => { (e.currentTarget as HTMLElement).style.background = "#7C3AED18"; (e.currentTarget as HTMLElement).style.color = "#c4b5fd"; }}>
+                          onMouseOut={e => { (e.currentTarget as HTMLElement).style.background = "#7C3AED25"; (e.currentTarget as HTMLElement).style.color = "#c4b5fd"; }}>
                           <Code2 size={14}/> Open Workspace <ArrowRight size={13}/>
                         </button>
                       </div>
@@ -897,15 +894,14 @@ export default function DashboardPage() {
           <div className="animate-slide-up delay-200">
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
               <div>
-                <h2 style={{ fontSize: 22, fontWeight: 800, color: "#fff", margin: 0 }}>🌐 Shared Public Library</h2>
-                <p style={{ fontSize: 13, color: "#777", marginTop: 4 }}>Explore public projects, templates, media files & code samples</p>
+                <h2 style={{ fontSize: 22, fontWeight: 900, color: "#fff", margin: 0 }}>🌐 Shared Public Library</h2>
+                <p style={{ fontSize: 13, color: "#cbd5e1", marginTop: 4, fontWeight: 500 }}>Explore public projects, templates, media files & code samples</p>
               </div>
 
-              {/* Search Bar for Shared Library by Name, Author, Category */}
-              <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#0d0d1a", border: "1px solid #1a1a2e", borderRadius: 12, padding: "10px 16px", width: "100%", maxWidth: 320 }}>
-                <Search size={15} color="#666"/>
-                <input value={librarySearch} onChange={e => setLibrarySearch(e.target.value)} placeholder="Search by workspace name..."
-                  style={{ background: "none", border: "none", outline: "none", color: "#fff", fontSize: 13, width: "100%" }}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#0d0d1a", border: "1px solid #334155", borderRadius: 12, padding: "10px 16px", width: "100%", maxWidth: 320 }}>
+                <Search size={15} color="#94a3b8"/>
+                <input value={librarySearch} onChange={e => setLibrarySearch(e.target.value)} placeholder="Search public workspaces..."
+                  style={{ background: "none", border: "none", outline: "none", color: "#fff", fontSize: 13, width: "100%", fontWeight: 500 }}
                 />
               </div>
             </div>
@@ -919,11 +915,11 @@ export default function DashboardPage() {
                   style={{
                     padding: "6px 14px",
                     background: selectedCategory === cat ? "#7C3AED" : "#0d0d1a",
-                    border: selectedCategory === cat ? "1px solid #7C3AED" : "1px solid #1a1a2e",
+                    border: selectedCategory === cat ? "1px solid #7C3AED" : "1px solid #334155",
                     borderRadius: 20,
-                    color: selectedCategory === cat ? "#fff" : "#888",
+                    color: selectedCategory === cat ? "#fff" : "#cbd5e1",
                     fontSize: 12,
-                    fontWeight: 600,
+                    fontWeight: 700,
                     cursor: "pointer",
                     transition: "all 0.15s"
                   }}
@@ -934,41 +930,48 @@ export default function DashboardPage() {
             </div>
 
             {filteredSharedLibrary.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "60px 20px", background: "#0d0d1a", borderRadius: 20, border: "1px dashed #1a1a2e" }}>
-                <Layers size={40} color="#333" style={{ margin: "0 auto 16px" }}/>
-                <p style={{ color: "#555", fontSize: 15 }}>No matching public library workspaces found.</p>
+              <div style={{ textAlign: "center", padding: "60px 20px", background: "#0d0d1a", borderRadius: 20, border: "1px dashed #334155" }}>
+                <Layers size={40} color="#64748b" style={{ margin: "0 auto 16px" }}/>
+                <p style={{ color: "#cbd5e1", fontSize: 15, fontWeight: 600 }}>No matching public library workspaces found.</p>
               </div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 16 }}>
-                {filteredSharedLibrary.map((item, index) => (
-                  <div
-                    key={item.id}
-                    className="glass-panel hover-card-glow animate-slide-up" style={{ animationDelay: `${200 + index * 50}ms`, borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", gap: 12, cursor: "pointer" }}
-                    onClick={() => openLibraryItem(item)}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                      <div>
-                        <span style={{ fontSize: 10, background: "#7C3AED20", color: "#c4b5fd", padding: "2px 8px", borderRadius: 10, fontWeight: 700, textTransform: "uppercase" }}>
-                          {item.meta?.category || "Project"}
-                        </span>
-                        <h3 style={{ fontWeight: 800, fontSize: 16, marginTop: 6, color: "#fff" }}>{item.meta?.title || item.name}</h3>
+                {filteredSharedLibrary.map((item, index) => {
+                  const title = getRoomTitle(item);
+                  const description = getRoomDescription(item);
+                  const author = getRoomAuthor(item);
+                  const category = getRoomCategory(item);
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="glass-panel hover-card-glow animate-slide-up" style={{ animationDelay: `${150 + index * 40}ms`, borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", gap: 12, cursor: "pointer" }}
+                      onClick={() => openLibraryItem(item)}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div>
+                          <span style={{ fontSize: 10, background: "#7C3AED30", color: "#c4b5fd", padding: "2px 8px", borderRadius: 10, fontWeight: 800, textTransform: "uppercase" }}>
+                            {category}
+                          </span>
+                          <h3 style={{ fontWeight: 800, fontSize: 16, marginTop: 6, color: "#ffffff" }}>{title}</h3>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: "50%", background: LANG_COLORS[item.language] || "#888" }}/>
+                          <span style={{ fontSize: 12, color: "#cbd5e1", fontWeight: 600 }}>{item.language}</span>
+                        </div>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: LANG_COLORS[item.language] || "#888" }}/>
-                        <span style={{ fontSize: 12, color: "#555" }}>{item.language}</span>
+
+                      <p style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.5, margin: "4px 0 8px", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", minHeight: 38 }}>
+                        {description || "Public workspace project with code and media files."}
+                      </p>
+
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #1e293b", paddingTop: 10, marginTop: 4 }}>
+                        <span style={{ fontSize: 11, color: "#94a3b8" }}>by <strong style={{ color: "#ffffff" }}>{author}</strong></span>
+                        <span style={{ fontSize: 12, color: "#34d399", fontWeight: 800 }}>Open & Explore →</span>
                       </div>
                     </div>
-
-                    <p style={{ fontSize: 13, color: "#888", lineHeight: 1.5, margin: "4px 0 8px", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", height: 38 }}>
-                      {item.meta?.description || "Public workspace project with code and media files."}
-                    </p>
-
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #111", paddingTop: 10, marginTop: 4 }}>
-                      <span style={{ fontSize: 11, color: "#666" }}>by <strong style={{ color: "#ccc" }}>{item.meta?.authorName || "Anonymous"}</strong></span>
-                      <span style={{ fontSize: 11, color: "#34d399", fontWeight: 700 }}>Open & Explore →</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -979,55 +982,57 @@ export default function DashboardPage() {
           <div className="animate-slide-up delay-200">
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
               <div>
-                <h2 style={{ fontSize: 22, fontWeight: 800, color: "#fff", margin: 0 }}>🔒 Private Library (Access Code Required)</h2>
-                <p style={{ fontSize: 13, color: "#777", marginTop: 4 }}>Access code protected private workspaces & media libraries</p>
+                <h2 style={{ fontSize: 22, fontWeight: 900, color: "#fff", margin: 0 }}>🔒 Private Library (Access Code Required)</h2>
+                <p style={{ fontSize: 13, color: "#cbd5e1", marginTop: 4, fontWeight: 500 }}>Access code protected private workspaces & media libraries</p>
               </div>
 
-              {/* Search Bar for Private Library by Name */}
-              <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#0d0d1a", border: "1px solid #1a1a2e", borderRadius: 12, padding: "10px 16px", width: "100%", maxWidth: 320 }}>
-                <Search size={15} color="#666"/>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#0d0d1a", border: "1px solid #334155", borderRadius: 12, padding: "10px 16px", width: "100%", maxWidth: 320 }}>
+                <Search size={15} color="#94a3b8"/>
                 <input value={privateSearch} onChange={e => setPrivateSearch(e.target.value)} placeholder="Search private workspaces..."
-                  style={{ background: "none", border: "none", outline: "none", color: "#fff", fontSize: 13, width: "100%" }}
+                  style={{ background: "none", border: "none", outline: "none", color: "#fff", fontSize: 13, width: "100%", fontWeight: 500 }}
                 />
               </div>
             </div>
 
             {filteredPrivateLibrary.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "60px 20px", background: "#0d0d1a", borderRadius: 20, border: "1px dashed #1a1a2e" }}>
-                <Lock size={40} color="#555" style={{ margin: "0 auto 16px" }}/>
-                <p style={{ color: "#555", fontSize: 15 }}>No private library workspaces found.</p>
+              <div style={{ textAlign: "center", padding: "60px 20px", background: "#0d0d1a", borderRadius: 20, border: "1px dashed #334155" }}>
+                <Lock size={40} color="#64748b" style={{ margin: "0 auto 16px" }}/>
+                <p style={{ color: "#cbd5e1", fontSize: 15, fontWeight: 600 }}>No private library workspaces found.</p>
               </div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 16 }}>
                 {filteredPrivateLibrary.map((item, index) => {
                   const isUnlocked = item.created_by === user?.id || unlockedIds.has(item.id);
+                  const title = getRoomTitle(item);
+                  const description = getRoomDescription(item);
+                  const author = getRoomAuthor(item);
 
                   return (
                     <div
                       key={item.id}
-                      className="glass-panel hover-card-glow animate-slide-up" style={{ animationDelay: `${200 + index * 50}ms`, borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", gap: 12, cursor: "pointer", border: isUnlocked ? "1px solid #10b98144" : "1px solid #f43f5e33" }}
+                      className="glass-panel hover-card-glow animate-slide-up" style={{ animationDelay: `${150 + index * 40}ms`, borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", gap: 12, cursor: "pointer", border: isUnlocked ? "1px solid #10b98155" : "1px solid #f43f5e44" }}
                       onClick={() => handleAccessPrivateItem(item)}
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                         <div>
-                          <span style={{ fontSize: 10, background: isUnlocked ? "#10b98120" : "#f43f5e20", color: isUnlocked ? "#34d399" : "#f87171", padding: "2px 8px", borderRadius: 10, fontWeight: 700, textTransform: "uppercase" }}>
+                          <span style={{ fontSize: 10, background: isUnlocked ? "#10b98125" : "#f43f5e25", color: isUnlocked ? "#34d399" : "#f87171", padding: "2px 8px", borderRadius: 10, fontWeight: 800, textTransform: "uppercase" }}>
                             {isUnlocked ? "Unlocked" : "🔒 Private"}
                           </span>
-                          <h3 style={{ fontWeight: 800, fontSize: 16, marginTop: 6, color: "#fff" }}>{item.meta?.title || item.name}</h3>
+                          <h3 style={{ fontWeight: 800, fontSize: 16, marginTop: 6, color: "#ffffff" }}>{title}</h3>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                           <span style={{ width: 8, height: 8, borderRadius: "50%", background: LANG_COLORS[item.language] || "#888" }}/>
-                          <span style={{ fontSize: 12, color: "#555" }}>{item.language}</span>
+                          <span style={{ fontSize: 12, color: "#cbd5e1", fontWeight: 600 }}>{item.language}</span>
                         </div>
                       </div>
 
-                      <p style={{ fontSize: 13, color: "#888", lineHeight: 1.5, margin: "4px 0 8px", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", height: 38 }}>
-                        {item.meta?.description || "Private workspace containing media files and source code."}
+                      <p style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.5, margin: "4px 0 8px", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", minHeight: 38 }}>
+                        {description || "Private workspace containing media files and source code."}
                       </p>
 
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #111", paddingTop: 10, marginTop: 4 }}>
-                        <span style={{ fontSize: 11, color: "#666" }}>by <strong style={{ color: "#ccc" }}>{item.meta?.authorName || "Anonymous"}</strong></span>
-                        <span style={{ fontSize: 12, color: isUnlocked ? "#34d399" : "#f87171", fontWeight: 700 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #1e293b", paddingTop: 10, marginTop: 4 }}>
+                        <span style={{ fontSize: 11, color: "#94a3b8" }}>by <strong style={{ color: "#ffffff" }}>{author}</strong></span>
+                        <span style={{ fontSize: 12, color: isUnlocked ? "#34d399" : "#f87171", fontWeight: 800 }}>
                           {isUnlocked ? "Open Workspace →" : "Enter Passcode 🔒"}
                         </span>
                       </div>
@@ -1039,26 +1044,25 @@ export default function DashboardPage() {
           </div>
         )}
 
-
         {activeTab === "community" && (
           <div className="animate-slide-up delay-200">
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
               <div>
-                <h2 style={{ fontSize: 22, fontWeight: 800, color: "#fff", margin: 0 }}>Community Profiles</h2>
-                <p style={{ color: "#777", fontSize: 13, marginTop: 4 }}>Follow developers, see their workspace stats, message them, and leave reviews.</p>
+                <h2 style={{ fontSize: 22, fontWeight: 900, color: "#fff", margin: 0 }}>Community Profiles</h2>
+                <p style={{ color: "#cbd5e1", fontSize: 13, marginTop: 4, fontWeight: 500 }}>Follow developers, see their workspace stats, message them, and leave reviews.</p>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#0d0d1a", border: "1px solid #1a1a2e", borderRadius: 12, padding: "10px 16px", width: "100%", maxWidth: 320 }}>
-                <Search size={15} color="#666"/>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#0d0d1a", border: "1px solid #334155", borderRadius: 12, padding: "10px 16px", width: "100%", maxWidth: 320 }}>
+                <Search size={15} color="#94a3b8"/>
                 <input value={communitySearch} onChange={e => setCommunitySearch(e.target.value)} placeholder="Search profiles..."
-                  style={{ background: "none", border: "none", outline: "none", color: "#fff", fontSize: 13, width: "100%" }}
+                  style={{ background: "none", border: "none", outline: "none", color: "#fff", fontSize: 13, width: "100%", fontWeight: 500 }}
                 />
               </div>
             </div>
 
             {filteredCommunityUsers.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "60px 20px", background: "#0d0d1a", borderRadius: 20, border: "1px dashed #1a1a2e" }}>
-                <Users size={40} color="#333" style={{ margin: "0 auto 16px" }}/>
-                <p style={{ color: "#555", fontSize: 15 }}>No profiles found.</p>
+              <div style={{ textAlign: "center", padding: "60px 20px", background: "#0d0d1a", borderRadius: 20, border: "1px dashed #334155" }}>
+                <Users size={40} color="#64748b" style={{ margin: "0 auto 16px" }}/>
+                <p style={{ color: "#cbd5e1", fontSize: 15, fontWeight: 600 }}>No profiles found.</p>
               </div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 16 }}>
@@ -1073,7 +1077,7 @@ export default function DashboardPage() {
                       </div>
                       <div style={{ minWidth: 0 }}>
                         <h3 style={{ margin: 0, color: "#fff", fontSize: 15, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{person.name || person.email || "User"}</h3>
-                        <p style={{ margin: "3px 0 0", color: "#666", fontSize: 12, textTransform: "capitalize" }}>{person.role || "student"} · {person.profileVisibility}</p>
+                        <p style={{ margin: "3px 0 0", color: "#cbd5e1", fontSize: 12, textTransform: "capitalize", fontWeight: 500 }}>{person.role || "student"} · {person.profileVisibility}</p>
                       </div>
                     </div>
 
@@ -1083,21 +1087,21 @@ export default function DashboardPage() {
                         { label: "Followers", value: person.followers },
                         { label: "Status", value: person.following ? "Following" : "Open" },
                       ].map((stat) => (
-                        <div key={stat.label} style={{ background: "#0d0d1a", border: "1px solid #1a1a2e", borderRadius: 10, padding: "8px 6px", textAlign: "center" }}>
+                        <div key={stat.label} style={{ background: "#0d0d1a", border: "1px solid #1e293b", borderRadius: 10, padding: "8px 6px", textAlign: "center" }}>
                           <div style={{ color: "#c4b5fd", fontWeight: 900, fontSize: 14 }}>{stat.value}</div>
-                          <div style={{ color: "#666", fontSize: 10, marginTop: 2 }}>{stat.label}</div>
+                          <div style={{ color: "#94a3b8", fontSize: 10, marginTop: 2, fontWeight: 600 }}>{stat.label}</div>
                         </div>
                       ))}
                     </div>
 
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 36px 36px", gap: 8 }}>
-                      <button onClick={() => toggleFollow(person)} style={{ padding: "9px 10px", background: person.following ? "#222" : "#7C3AED", border: "1px solid #7C3AED55", borderRadius: 10, color: "#fff", fontWeight: 800, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                      <button onClick={() => toggleFollow(person)} style={{ padding: "9px 10px", background: person.following ? "#334155" : "#7C3AED", border: "1px solid #7C3AED55", borderRadius: 10, color: "#fff", fontWeight: 800, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                         <UserPlus size={14}/> {person.following ? "Following" : "Follow"}
                       </button>
-                      <button onClick={() => sendDirectMessage(person)} title={person.profileVisibility === "private" && !(person.following && person.followsMe) ? "Private profile: mutual follow required" : "Message"} style={{ background: "#0d0d1a", border: "1px solid #1a1a2e", borderRadius: 10, color: person.profileVisibility === "private" && !(person.following && person.followsMe) ? "#666" : "#4ade80", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <button onClick={() => sendDirectMessage(person)} title={person.profileVisibility === "private" && !(person.following && person.followsMe) ? "Private profile: mutual follow required" : "Message"} style={{ background: "#0d0d1a", border: "1px solid #334155", borderRadius: 10, color: person.profileVisibility === "private" && !(person.following && person.followsMe) ? "#64748b" : "#4ade80", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <MessageCircle size={15}/>
                       </button>
-                      <button onClick={() => leaveReview(person)} title="Review" style={{ background: "#0d0d1a", border: "1px solid #1a1a2e", borderRadius: 10, color: "#facc15", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <button onClick={() => leaveReview(person)} title="Review" style={{ background: "#0d0d1a", border: "1px solid #334155", borderRadius: 10, color: "#facc15", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <Star size={15}/>
                       </button>
                     </div>
@@ -1108,24 +1112,19 @@ export default function DashboardPage() {
           </div>
         )}
 
-
-
         {activeTab === "account" && (
           /* My Profile Tab */
           <div className="animate-slide-up delay-200" style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start" }}>
-            {/* Left Column: Account Profile Editor */}
             <div className="glass-panel" style={{ flex: 1, minWidth: 320, borderRadius: 20, overflow: "hidden" }}>
               <AccountProfilePanel />
             </div>
 
-            {/* Right Column: Gamified Coding Progress Tracker */}
             <div className="glass-panel" style={{ width: "100%", maxWidth: 440, borderRadius: 20, padding: 24, display: "flex", flexDirection: "column", gap: 20 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, borderBottom: "1px solid #1a1a2e", paddingBottom: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, borderBottom: "1px solid #1e293b", paddingBottom: 12 }}>
                 <Award size={20} color="#ffd93d" />
                 <h2 style={{ fontSize: 18, fontWeight: 800, color: "#fff", margin: 0 }}>My Personal Progress</h2>
               </div>
 
-              {/* Rank / Level */}
               {(() => {
                 const totalProjects = rooms.length;
                 let levelName = "Novice Developer";
@@ -1162,7 +1161,6 @@ export default function DashboardPage() {
 
                 const levelProgress = totalProjects >= 15 ? 100 : ((totalProjects - prevTarget) / (currentTarget - prevTarget)) * 100;
 
-                // Check achievements
                 const hasFirstCommit = totalProjects >= 1;
                 const hasScheduledRoom = rooms.some(r => {
                   try {
@@ -1185,30 +1183,23 @@ export default function DashboardPage() {
                         {levelNum}
                       </div>
                       <div>
-                        <div style={{ fontSize: 13, color: "#666", fontWeight: 600 }}>CURRENT RANK</div>
+                        <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>CURRENT RANK</div>
                         <div style={{ fontSize: 18, fontWeight: 900, color: "#fff" }}>{levelName}</div>
                       </div>
                     </div>
 
-                    {/* Progress Bar */}
                     <div>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 6 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#cbd5e1", marginBottom: 6, fontWeight: 600 }}>
                         <span>Level Progress ({totalProjects} / {totalProjects >= 15 ? "Max" : currentTarget} projects)</span>
                         <span>{Math.round(levelProgress)}%</span>
                       </div>
-                      <div style={{ height: 8, background: "#111", borderRadius: 99, overflow: "hidden", border: "1px solid #222" }}>
+                      <div style={{ height: 8, background: "#111827", borderRadius: 99, overflow: "hidden", border: "1px solid #334155" }}>
                         <div style={{ height: "100%", width: `${levelProgress}%`, background: `linear-gradient(90deg, ${badgeColor}, #7c3aed)`, borderRadius: 99 }} />
                       </div>
-                      {totalProjects < 15 && (
-                        <div style={{ fontSize: 11, color: "#555", marginTop: 6, textAlign: "right" }}>
-                          {currentTarget - totalProjects} more project{currentTarget - totalProjects !== 1 ? "s" : ""} to reach Level {levelNum + 1}
-                        </div>
-                      )}
                     </div>
 
-                    {/* Achievements Checklist */}
                     <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: "0.05em" }}>Achievements</div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Achievements</div>
                       
                       {[
                         { title: "First Commit", desc: "Create your first collaborative workspace", done: hasFirstCommit },
@@ -1218,18 +1209,18 @@ export default function DashboardPage() {
                       ].map((ach, idx) => (
                         <div key={idx} style={{
                           display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10,
-                          background: ach.done ? "rgba(16,185,129,0.06)" : "rgba(255,255,255,0.01)",
-                          border: `1px solid ${ach.done ? "rgba(16,185,129,0.2)" : "#1a1a2e"}`
+                          background: ach.done ? "rgba(16,185,129,0.08)" : "rgba(255,255,255,0.02)",
+                          border: `1px solid ${ach.done ? "rgba(16,185,129,0.3)" : "#334155"}`
                         }}>
                           <div style={{
-                            width: 20, height: 20, borderRadius: "50%", background: ach.done ? "#10b981" : "#222",
+                            width: 20, height: 20, borderRadius: "50%", background: ach.done ? "#10b981" : "#334155",
                             display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 11, fontWeight: "bold"
                           }}>
                             {ach.done ? "✓" : "?"}
                           </div>
                           <div>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: ach.done ? "#10b981" : "#ccc" }}>{ach.title}</div>
-                            <div style={{ fontSize: 11, color: "#666" }}>{ach.desc}</div>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: ach.done ? "#10b981" : "#ffffff" }}>{ach.title}</div>
+                            <div style={{ fontSize: 11, color: "#cbd5e1" }}>{ach.desc}</div>
                           </div>
                         </div>
                       ))}
@@ -1245,13 +1236,13 @@ export default function DashboardPage() {
           <div className="animate-slide-up delay-200" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 14 }}>
               {[
-                { label: "Total Workspaces", value: rooms.length, color: "#7C3AED" },
+                { label: "Total Workspaces", value: rooms.length, color: "#c4b5fd" },
                 { label: "Shared Templates", value: libraryRooms.filter(r => r.created_by === user?.id).length, color: "#10b981" },
                 { label: "Languages Used", value: new Set(rooms.map(r => r.language)).size, color: "#60a5fa" },
                 { label: "Student Status", value: cfg.label, color: cfg.color },
               ].map((stat) => (
                 <div key={stat.label} className="glass-panel hover-card-glow" style={{ borderRadius: 16, padding: 18 }}>
-                  <div style={{ fontSize: 11, color: "#666", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>{stat.label}</div>
+                  <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>{stat.label}</div>
                   <div style={{ fontSize: 26, fontWeight: 900, color: stat.color }}>{stat.value}</div>
                 </div>
               ))}
@@ -1264,21 +1255,21 @@ export default function DashboardPage() {
       {/* Explore Dialog Modal (Monaco Read-Only + Zip support) */}
       {exploreItem && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 20 }}>
-          <div style={{ background: "#1e1e1e", border: "1px solid #333", borderRadius: 16, width: "100%", maxWidth: 1000, height: "85vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 24px 64px rgba(0,0,0,0.8)" }}>
+          <div style={{ background: "#1e1e1e", border: "1px solid #334155", borderRadius: 16, width: "100%", maxWidth: 1000, height: "85vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 24px 64px rgba(0,0,0,0.8)" }}>
             
             {/* Modal Header */}
             <div style={{ height: 56, borderBottom: "1px solid #2b2b2b", background: "#252526", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 10, background: "#7C3AED20", color: "#c4b5fd", padding: "2px 8px", borderRadius: 10, fontWeight: 700, textTransform: "uppercase" }}>
-                  {exploreItem.meta?.category || "Project"}
+                <span style={{ fontSize: 10, background: "#7C3AED30", color: "#c4b5fd", padding: "2px 8px", borderRadius: 10, fontWeight: 800, textTransform: "uppercase" }}>
+                  {getRoomCategory(exploreItem)}
                 </span>
-                <span style={{ fontSize: 15, fontWeight: 800, color: "#fff" }}>{exploreItem.meta?.title}</span>
-                <span style={{ fontSize: 12, color: "#666" }}>by {exploreItem.meta?.authorName}</span>
+                <span style={{ fontSize: 15, fontWeight: 800, color: "#fff" }}>{getRoomTitle(exploreItem)}</span>
+                <span style={{ fontSize: 12, color: "#94a3b8" }}>by {getRoomAuthor(exploreItem)}</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <button
                   disabled={cloningProject}
-                  onClick={() => downloadProjectAsZip(exploreItem.meta?.title || "project", exploreItem.files_json || [])}
+                  onClick={() => downloadProjectAsZip(getRoomTitle(exploreItem), exploreItem.files_json || [])}
                   style={{ padding: "6px 12px", background: "#2a2a2a", border: "1px solid #444", borderRadius: 8, color: "#ccc", fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}
                 >
                   <Download size={13} /> Download ZIP
@@ -1286,13 +1277,13 @@ export default function DashboardPage() {
                 <button
                   onClick={() => handleCloneProject(exploreItem)}
                   disabled={cloningProject}
-                  style={{ padding: "6px 16px", background: "linear-gradient(135deg,#7C3AED,#5b21b6)", border: "none", borderRadius: 8, color: "#fff", fontSize: 12, fontWeight: 700, cursor: cloningProject ? "default" : "pointer", display: "flex", alignItems: "center", gap: 5 }}
+                  style={{ padding: "6px 16px", background: "linear-gradient(135deg,#7C3AED,#5b21b6)", border: "none", borderRadius: 8, color: "#fff", fontSize: 12, fontWeight: 800, cursor: cloningProject ? "default" : "pointer", display: "flex", alignItems: "center", gap: 5 }}
                 >
                   {cloningProject ? "Cloning..." : <><Zap size={13} /> Clone Project</>}
                 </button>
                 <button
                   onClick={() => setExploreItem(null)}
-                  style={{ background: "none", border: "none", color: "#666", cursor: "pointer", display: "flex", padding: 4 }}
+                  style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", display: "flex", padding: 4 }}
                 >
                   <X size={20} />
                 </button>
@@ -1304,7 +1295,7 @@ export default function DashboardPage() {
               
               {/* Explorer Sidebar */}
               <div style={{ width: 220, background: "#252526", borderRight: "1px solid #2d2d2d", display: "flex", flexDirection: "column", overflowY: "auto", padding: 12 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#555", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}>
                   <Folder size={11}/> Project Files
                 </div>
                 
@@ -1322,16 +1313,17 @@ export default function DashboardPage() {
                           padding: "6px 10px",
                           borderRadius: 6,
                           cursor: "pointer",
-                          background: exploreActiveFile === path ? "#7C3AED22" : "transparent",
-                          color: exploreActiveFile === path ? "#c4b5fd" : "#aaa",
+                          background: exploreActiveFile === path ? "#7C3AED33" : "transparent",
+                          color: exploreActiveFile === path ? "#c4b5fd" : "#cbd5e1",
                           fontSize: 12,
+                          fontWeight: 500,
                           display: "flex",
                           alignItems: "center",
                           gap: 6,
                           transition: "all 0.15s"
                         }}
                       >
-                        <File size={12} color={exploreActiveFile === path ? "#c4b5fd" : "#666"} />
+                        <File size={12} color={exploreActiveFile === path ? "#c4b5fd" : "#94a3b8"} />
                         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {path}
                         </span>
@@ -1346,13 +1338,11 @@ export default function DashboardPage() {
                 {exploreActiveFile ? (
                   <>
                     <div style={{ height: 28, background: "#2d2d2d", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", borderBottom: "1px solid #252526" }}>
-                      <span style={{ fontSize: 11, color: "#888", fontFamily: "monospace" }}>{exploreActiveFile}</span>
+                      <span style={{ fontSize: 11, color: "#cbd5e1", fontFamily: "monospace" }}>{exploreActiveFile}</span>
                       <button
                         onClick={() => handleDownloadFile(exploreActiveFile, exploreFileContent)}
                         title="Download file"
-                        style={{ background: "none", border: "none", color: "#555", cursor: "pointer", display: "flex", padding: 2 }}
-                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#ccc"}
-                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#555"}
+                        style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", display: "flex", padding: 2 }}
                       >
                         <Download size={12} />
                       </button>
@@ -1377,7 +1367,7 @@ export default function DashboardPage() {
                     </div>
                   </>
                 ) : (
-                  <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10, color: "#444" }}>
+                  <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10, color: "#94a3b8" }}>
                     <Laptop size={32} />
                     <span style={{ fontSize: 13 }}>Select a file to preview code</span>
                   </div>
@@ -1392,59 +1382,53 @@ export default function DashboardPage() {
       {/* ── Workspace Creation Modal ── */}
       {showCreateModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 20 }}>
-          <div style={{ background: "#0d0d18", border: "1px solid #1a1a2e", borderRadius: 20, width: "100%", maxWidth: 520, padding: 32, boxShadow: "0 24px 64px rgba(0,0,0,0.8)", animation: "pcp-fadeIn 0.2s ease-out" }}>
+          <div style={{ background: "#0d0d18", border: "1px solid #334155", borderRadius: 20, width: "100%", maxWidth: 520, padding: 32, boxShadow: "0 24px 64px rgba(0,0,0,0.8)", animation: "pcp-fadeIn 0.2s ease-out" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
               <h2 style={{ fontSize: 22, fontWeight: 900, color: "#fff", margin: 0 }}>✨ Create New Workspace</h2>
-              <button onClick={() => setShowCreateModal(false)} style={{ background: "none", border: "none", color: "#666", cursor: "pointer" }}><X size={22} /></button>
+              <button onClick={() => setShowCreateModal(false)} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}><X size={22} /></button>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {/* Workspace Name */}
               <div>
-                <label style={{ fontSize: 11, color: "#888", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Workspace Name</label>
-                <input value={createWorkspaceTitle} onChange={e => setCreateWorkspaceTitle(e.target.value)} placeholder="My Awesome Project" style={{ width: "100%", background: "#111", border: "1px solid #222", borderRadius: 10, padding: "10px 14px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+                <label style={{ fontSize: 11, color: "#cbd5e1", fontWeight: 800, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Workspace Name</label>
+                <input value={createWorkspaceTitle} onChange={e => setCreateWorkspaceTitle(e.target.value)} placeholder="My Awesome Project" style={{ width: "100%", background: "#111827", border: "1px solid #334155", borderRadius: 10, padding: "10px 14px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
               </div>
 
-              {/* Language */}
               <div>
-                <label style={{ fontSize: 11, color: "#888", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Language</label>
-                <select value={createWorkspaceLang} onChange={e => setCreateWorkspaceLang(e.target.value)} style={{ width: "100%", background: "#111", border: "1px solid #222", borderRadius: 10, padding: "10px 14px", color: "#ccc", fontSize: 13, outline: "none" }}>
+                <label style={{ fontSize: 11, color: "#cbd5e1", fontWeight: 800, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Language</label>
+                <select value={createWorkspaceLang} onChange={e => setCreateWorkspaceLang(e.target.value)} style={{ width: "100%", background: "#111827", border: "1px solid #334155", borderRadius: 10, padding: "10px 14px", color: "#fff", fontSize: 13, outline: "none", fontWeight: 500 }}>
                   {LANGS.map(l => <option key={l} value={l}>{l.charAt(0).toUpperCase() + l.slice(1)}</option>)}
                 </select>
               </div>
 
-              {/* Category */}
               <div>
-                <label style={{ fontSize: 11, color: "#888", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Category</label>
-                <select value={createWorkspaceCategory} onChange={e => setCreateWorkspaceCategory(e.target.value)} style={{ width: "100%", background: "#111", border: "1px solid #222", borderRadius: 10, padding: "10px 14px", color: "#ccc", fontSize: 13, outline: "none" }}>
+                <label style={{ fontSize: 11, color: "#cbd5e1", fontWeight: 800, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Category</label>
+                <select value={createWorkspaceCategory} onChange={e => setCreateWorkspaceCategory(e.target.value)} style={{ width: "100%", background: "#111827", border: "1px solid #334155", borderRadius: 10, padding: "10px 14px", color: "#fff", fontSize: 13, outline: "none", fontWeight: 500 }}>
                   {CATEGORIES.filter(c => c !== "All").map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
 
-              {/* Type: Public / Private */}
               <div>
-                <label style={{ fontSize: 11, color: "#888", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: 8 }}>Visibility</label>
+                <label style={{ fontSize: 11, color: "#cbd5e1", fontWeight: 800, textTransform: "uppercase", display: "block", marginBottom: 8 }}>Visibility</label>
                 <div style={{ display: "flex", gap: 10 }}>
-                  <button onClick={() => setCreateWorkspaceType("public")} style={{ flex: 1, padding: "12px", background: createWorkspaceType === "public" ? "#10b98120" : "#111", border: createWorkspaceType === "public" ? "2px solid #10b981" : "1px solid #222", borderRadius: 12, color: createWorkspaceType === "public" ? "#34d399" : "#888", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.15s" }}>
+                  <button onClick={() => setCreateWorkspaceType("public")} style={{ flex: 1, padding: "12px", background: createWorkspaceType === "public" ? "#10b98125" : "#111827", border: createWorkspaceType === "public" ? "2px solid #10b981" : "1px solid #334155", borderRadius: 12, color: createWorkspaceType === "public" ? "#34d399" : "#cbd5e1", fontSize: 13, fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.15s" }}>
                     <Globe size={16} /> 🌐 Public (Shared)
                   </button>
-                  <button onClick={() => setCreateWorkspaceType("private")} style={{ flex: 1, padding: "12px", background: createWorkspaceType === "private" ? "#f43f5e20" : "#111", border: createWorkspaceType === "private" ? "2px solid #f43f5e" : "1px solid #222", borderRadius: 12, color: createWorkspaceType === "private" ? "#f87171" : "#888", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.15s" }}>
+                  <button onClick={() => setCreateWorkspaceType("private")} style={{ flex: 1, padding: "12px", background: createWorkspaceType === "private" ? "#f43f5e25" : "#111827", border: createWorkspaceType === "private" ? "2px solid #f43f5e" : "1px solid #334155", borderRadius: 12, color: createWorkspaceType === "private" ? "#f87171" : "#cbd5e1", fontSize: 13, fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.15s" }}>
                     <Lock size={16} /> 🔒 Private (Access Code)
                   </button>
                 </div>
               </div>
 
-              {/* Access Code (only for Private) */}
               {createWorkspaceType === "private" && (
                 <div>
-                  <label style={{ fontSize: 11, color: "#f87171", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: 6 }}>🔑 Access Code (Required)</label>
-                  <input value={createWorkspaceAccessCode} onChange={e => setCreateWorkspaceAccessCode(e.target.value)} placeholder="Enter a passcode e.g. MYCODE123" style={{ width: "100%", background: "#111", border: "1px solid #f43f5e44", borderRadius: 10, padding: "10px 14px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box", letterSpacing: 1 }} />
-                  <p style={{ fontSize: 11, color: "#777", marginTop: 6 }}>Share this code with users who need access to your private workspace.</p>
+                  <label style={{ fontSize: 11, color: "#f87171", fontWeight: 800, textTransform: "uppercase", display: "block", marginBottom: 6 }}>🔑 Access Code (Required)</label>
+                  <input value={createWorkspaceAccessCode} onChange={e => setCreateWorkspaceAccessCode(e.target.value)} placeholder="Enter a passcode e.g. MYCODE123" style={{ width: "100%", background: "#111827", border: "1px solid #f43f5e66", borderRadius: 10, padding: "10px 14px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box", letterSpacing: 1 }} />
+                  <p style={{ fontSize: 11, color: "#cbd5e1", marginTop: 6 }}>Share this code with users who need access to your private workspace.</p>
                 </div>
               )}
 
-              {/* Create Button */}
-              <button onClick={handleCreate} disabled={creating} style={{ width: "100%", padding: "13px", background: creating ? "#333" : "linear-gradient(135deg,#7C3AED,#5b21b6)", border: "none", borderRadius: 12, color: "#fff", fontSize: 15, fontWeight: 800, cursor: creating ? "default" : "pointer", marginTop: 8, transition: "all 0.2s" }}>
+              <button onClick={handleCreate} disabled={creating} style={{ width: "100%", padding: "13px", background: creating ? "#475569" : "linear-gradient(135deg,#7C3AED,#5b21b6)", border: "none", borderRadius: 12, color: "#fff", fontSize: 15, fontWeight: 800, cursor: creating ? "default" : "pointer", marginTop: 8, transition: "all 0.2s" }}>
                 {creating ? "Creating..." : "Create Workspace →"}
               </button>
             </div>
@@ -1455,32 +1439,32 @@ export default function DashboardPage() {
       {/* ── Private Unlock Modal ── */}
       {unlockingItem && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 20 }}>
-          <div style={{ background: "#0d0d18", border: "1px solid #f43f5e33", borderRadius: 20, width: "100%", maxWidth: 440, padding: 32, boxShadow: "0 24px 64px rgba(0,0,0,0.8)", textAlign: "center", animation: "pcp-fadeIn 0.2s ease-out" }}>
-            <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#f43f5e15", border: "2px solid #f43f5e44", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+          <div style={{ background: "#0d0d18", border: "1px solid #f43f5e55", borderRadius: 20, width: "100%", maxWidth: 440, padding: 32, boxShadow: "0 24px 64px rgba(0,0,0,0.8)", textAlign: "center", animation: "pcp-fadeIn 0.2s ease-out" }}>
+            <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#f43f5e20", border: "2px solid #f43f5e55", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
               <Shield size={28} color="#f87171" />
             </div>
             <h2 style={{ fontSize: 20, fontWeight: 900, color: "#fff", marginBottom: 6 }}>🔒 Private Workspace</h2>
-            <h3 style={{ fontSize: 15, fontWeight: 600, color: "#c4b5fd", marginBottom: 4 }}>{unlockingItem.meta?.title || "Private Library"}</h3>
-            <p style={{ fontSize: 13, color: "#888", marginBottom: 20 }}>by {unlockingItem.meta?.authorName || "the owner"}</p>
-            <p style={{ fontSize: 13, color: "#aaa", marginBottom: 16 }}>Enter the access code provided by the workspace owner to unlock and view the contents.</p>
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: "#c4b5fd", marginBottom: 4 }}>{getRoomTitle(unlockingItem)}</h3>
+            <p style={{ fontSize: 13, color: "#cbd5e1", marginBottom: 20 }}>by {getRoomAuthor(unlockingItem)}</p>
+            <p style={{ fontSize: 13, color: "#cbd5e1", marginBottom: 16 }}>Enter the access code provided by the workspace owner to unlock and view the contents.</p>
 
             <input
               value={unlockPasscode}
               onChange={e => { setUnlockPasscode(e.target.value); setUnlockError(""); }}
               onKeyDown={e => e.key === "Enter" && handleUnlockPrivateSubmit()}
               placeholder="Enter access code..."
-              style={{ width: "100%", background: "#111", border: unlockError ? "2px solid #f43f5e" : "1px solid #333", borderRadius: 10, padding: "12px 16px", color: "#fff", fontSize: 15, outline: "none", boxSizing: "border-box", textAlign: "center", letterSpacing: 2, fontWeight: 700, marginBottom: 8 }}
+              style={{ width: "100%", background: "#111827", border: unlockError ? "2px solid #f43f5e" : "1px solid #334155", borderRadius: 10, padding: "12px 16px", color: "#fff", fontSize: 15, outline: "none", boxSizing: "border-box", textAlign: "center", letterSpacing: 2, fontWeight: 800, marginBottom: 8 }}
             />
 
             {unlockError && (
-              <p style={{ fontSize: 12, color: "#f87171", marginBottom: 12, fontWeight: 600 }}>{unlockError}</p>
+              <p style={{ fontSize: 12, color: "#f87171", marginBottom: 12, fontWeight: 700 }}>{unlockError}</p>
             )}
 
             <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-              <button onClick={() => setUnlockingItem(null)} style={{ flex: 1, padding: "11px", background: "#222", border: "1px solid #333", borderRadius: 10, color: "#aaa", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+              <button onClick={() => setUnlockingItem(null)} style={{ flex: 1, padding: "11px", background: "#1e293b", border: "1px solid #334155", borderRadius: 10, color: "#cbd5e1", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                 Cancel
               </button>
-              <button onClick={handleUnlockPrivateSubmit} style={{ flex: 1, padding: "11px", background: "linear-gradient(135deg,#7C3AED,#5b21b6)", border: "none", borderRadius: 10, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+              <button onClick={handleUnlockPrivateSubmit} style={{ flex: 1, padding: "11px", background: "linear-gradient(135deg,#7C3AED,#5b21b6)", border: "none", borderRadius: 10, color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>
                 🔓 Unlock
               </button>
             </div>
@@ -1490,10 +1474,10 @@ export default function DashboardPage() {
 
       {messageTarget && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 20 }}>
-          <div style={{ background: "#0d0d18", border: "1px solid #1a1a2e", borderRadius: 20, width: "100%", maxWidth: 460, padding: 28, boxShadow: "0 24px 64px rgba(0,0,0,0.8)" }}>
+          <div style={{ background: "#0d0d18", border: "1px solid #334155", borderRadius: 20, width: "100%", maxWidth: 460, padding: 28, boxShadow: "0 24px 64px rgba(0,0,0,0.8)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
               <h2 style={{ margin: 0, color: "#fff", fontSize: 18, fontWeight: 900 }}>Message {messageTarget.name || messageTarget.email || "User"}</h2>
-              <button onClick={() => setMessageTarget(null)} style={{ background: "none", border: "none", color: "#666", cursor: "pointer" }}><X size={20}/></button>
+              <button onClick={() => setMessageTarget(null)} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}><X size={20}/></button>
             </div>
             <div style={{ maxHeight: 260, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, marginBottom: 12, paddingRight: 4 }}>
               {threadMessages.filter((msg) => {
@@ -1505,7 +1489,7 @@ export default function DashboardPage() {
                 const mine = msg.sender_id === user?.id;
                 const canEdit = mine && Date.now() - new Date(msg.created_at).getTime() < 5 * 60 * 1000;
                 return (
-                  <div key={msg.id} style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "86%", background: mine ? "#7C3AED22" : "#111", border: mine ? "1px solid #7C3AED44" : "1px solid #222", borderRadius: 12, padding: 10 }}>
+                  <div key={msg.id} style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "86%", background: mine ? "#7C3AED22" : "#111827", border: mine ? "1px solid #7C3AED44" : "1px solid #334155", borderRadius: 12, padding: 10 }}>
                     {msg.content && <div style={{ color: "#e5e7eb", fontSize: 13, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{msg.content}</div>}
                     {msg.media_url && (
                       msg.media_url.match(/\.(png|jpg|jpeg|gif|webp)$/i) || msg.media_url.startsWith("data:image") ? (
@@ -1515,10 +1499,10 @@ export default function DashboardPage() {
                         <a href={msg.media_url} target="_blank" rel="noreferrer" style={{ display: "block", color: "#93c5fd", fontSize: 12, marginTop: 8 }}>Open media</a>
                       )
                     )}
-                    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 6, color: "#666", fontSize: 10 }}>
+                    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 6, color: "#94a3b8", fontSize: 10 }}>
                       {msg.edited_at && <span>edited</span>}
                       {canEdit && <button onClick={() => editMessage(msg)} style={{ background: "none", border: "none", color: "#c4b5fd", cursor: "pointer", fontSize: 10 }}>Edit</button>}
-                      <button onClick={() => deleteMessage(msg, "mine")} style={{ background: "none", border: "none", color: "#888", cursor: "pointer", fontSize: 10 }}>Delete mine</button>
+                      <button onClick={() => deleteMessage(msg, "mine")} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: 10 }}>Delete mine</button>
                       {mine && <button onClick={() => deleteMessage(msg, "both")} style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: 10 }}>Delete both</button>}
                     </div>
                   </div>
@@ -1530,17 +1514,16 @@ export default function DashboardPage() {
               onChange={(e) => setMessageText(e.target.value)}
               placeholder="Write a message..."
               rows={4}
-              style={{ width: "100%", background: "#111", border: "1px solid #333", borderRadius: 10, color: "#fff", fontSize: 13, padding: 12, outline: "none", resize: "none", boxSizing: "border-box", marginBottom: 10 }}
+              style={{ width: "100%", background: "#111827", border: "1px solid #334155", borderRadius: 10, color: "#fff", fontSize: 13, padding: 12, outline: "none", resize: "none", boxSizing: "border-box", marginBottom: 10 }}
             />
             <input
               value={messageAttachment}
               onChange={(e) => setMessageAttachment(e.target.value)}
               placeholder="Optional media URL or uploaded media data"
-              style={{ width: "100%", background: "#111", border: "1px solid #333", borderRadius: 10, color: "#fff", fontSize: 13, padding: "10px 12px", outline: "none", boxSizing: "border-box" }}
+              style={{ width: "100%", background: "#111827", border: "1px solid #334155", borderRadius: 10, color: "#fff", fontSize: 13, padding: "10px 12px", outline: "none", boxSizing: "border-box" }}
             />
-            <p style={{ color: "#777", fontSize: 11, margin: "8px 0 16px" }}>Messages can be edited for 5 minutes. Deleting can be from your side, their side, or both once the inbox view is added.</p>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setMessageTarget(null)} style={{ flex: 1, padding: "11px", background: "#222", border: "1px solid #333", borderRadius: 10, color: "#aaa", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
+            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+              <button onClick={() => setMessageTarget(null)} style={{ flex: 1, padding: "11px", background: "#1e293b", border: "1px solid #334155", borderRadius: 10, color: "#cbd5e1", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
               <button onClick={submitDirectMessage} style={{ flex: 1, padding: "11px", background: "linear-gradient(135deg,#7C3AED,#5b21b6)", border: "none", borderRadius: 10, color: "#fff", fontWeight: 800, cursor: "pointer" }}>Send</button>
             </div>
           </div>

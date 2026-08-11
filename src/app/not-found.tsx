@@ -8,31 +8,31 @@ export default function NotFound() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#0a0a0a",
-        color: "#fff",
+        background: "#ffffff",
+        color: "#000000",
         fontFamily: "'Inter', sans-serif",
       }}
     >
-      <div style={{ textAlign: "center", maxWidth: 420 }}>
-        <div style={{ fontSize: 64, fontWeight: 800, color: "#7C3AED", marginBottom: 8 }}>404</div>
-        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Page Not Found</h2>
-        <p style={{ fontSize: 14, color: "#999", marginBottom: 24 }}>
+      <div style={{ textAlign: "center", maxWidth: 420, padding: 24 }}>
+        <div style={{ fontSize: 64, fontWeight: 900, color: "#000000", marginBottom: 8 }}>404</div>
+        <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>Page Not Found</h2>
+        <p style={{ fontSize: 14, color: "#4b5563", marginBottom: 24 }}>
           The page you&apos;re looking for doesn&apos;t exist or has been moved.
         </p>
         <Link
-          href="/dashboard"
+          href="/"
           style={{
             display: "inline-block",
-            background: "#7C3AED",
-            color: "#fff",
+            background: "#000000",
+            color: "#ffffff",
             borderRadius: 8,
             padding: "10px 24px",
             fontSize: 14,
-            fontWeight: 600,
+            fontWeight: 700,
             textDecoration: "none",
           }}
         >
-          Go to Dashboard
+          Back to Home
         </Link>
       </div>
     </div>

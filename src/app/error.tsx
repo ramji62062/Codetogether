@@ -20,27 +20,27 @@ export default function GlobalError({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#0a0a0a",
-        color: "#fff",
+        background: "#ffffff",
+        color: "#000000",
         fontFamily: "'Inter', sans-serif",
       }}
     >
-      <div style={{ textAlign: "center", maxWidth: 420 }}>
+      <div style={{ textAlign: "center", maxWidth: 420, padding: 24 }}>
         <div style={{ fontSize: 48, marginBottom: 12 }}>⚠️</div>
-        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Something went wrong</h2>
-        <p style={{ fontSize: 14, color: "#999", marginBottom: 24 }}>
+        <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>Something went wrong</h2>
+        <p style={{ fontSize: 14, color: "#4b5563", marginBottom: 24 }}>
           {error.message || "An unexpected error occurred."}
         </p>
         <button
           onClick={reset}
           style={{
-            background: "#7C3AED",
-            color: "#fff",
+            background: "#000000",
+            color: "#ffffff",
             border: "none",
             borderRadius: 8,
             padding: "10px 24px",
             fontSize: 14,
-            fontWeight: 600,
+            fontWeight: 700,
             cursor: "pointer",
           }}
         >

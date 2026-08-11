@@ -88,43 +88,43 @@ export default function JoinByCodePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
+    <div className="min-h-screen bg-white text-black font-sans">
       <Navbar />
-      <main className="mx-auto max-w-2xl px-5 py-10 sm:px-8">
+      <main className="mx-auto max-w-2xl px-5 py-12 sm:px-8">
         {loading ? (
-          <div className="rounded-2xl border border-[#1f1f1f] bg-[#111111] p-6">
-            <p className="text-gray-300">Checking room code...</p>
+          <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm text-center">
+            <p className="text-gray-700 font-medium">Checking room code...</p>
           </div>
         ) : room ? (
-          <div className="rounded-2xl border border-[#1f1f1f] bg-[#111111] p-6">
-            <h1 className="text-2xl font-bold">Join Room</h1>
-            <p className="mt-1 text-gray-400">
-              Room: {room.name || "Untitled"} · Code: {room.room_code}
+          <div className="rounded-2xl border-2 border-black bg-white p-8 shadow-lg">
+            <h1 className="text-2xl font-black text-black">Join Workspace Room</h1>
+            <p className="mt-1 text-gray-700 font-medium">
+              Room: <span className="font-bold text-black">{room.name || "Untitled"}</span> · Code: <span className="font-bold text-black font-mono">{room.room_code}</span>
             </p>
 
             <GuestJoinSection displayName={displayName} setDisplayName={setDisplayName} />
 
-            <label className="mt-4 block text-sm font-semibold text-gray-300">Access code</label>
+            <label className="mt-5 block text-sm font-bold text-black">Access code (if required)</label>
             <input
               value={accessCode}
               onChange={(e) => setAccessCode(e.target.value)}
               placeholder="Required for private rooms"
-              className="mt-2 w-full rounded-lg border border-[#2a2a2a] bg-[#0b0b0b] px-3 py-2 text-white outline-none focus:border-[#7C3AED]"
+              className="mt-2 w-full rounded-lg border-2 border-gray-300 bg-white px-4 py-2.5 text-black outline-none font-medium focus:border-black"
             />
 
-            {error ? <p className="mt-4 text-sm text-red-400">{error}</p> : null}
+            {error ? <p className="mt-4 text-sm font-semibold text-red-600">{error}</p> : null}
 
             <button
               onClick={joinRoom}
               disabled={joining}
-              className="mt-5 rounded-lg bg-[#7C3AED] px-5 py-2 font-semibold transition hover:bg-[#6d28d9] disabled:opacity-70"
+              className="mt-6 w-full rounded-xl bg-black px-6 py-3 font-extrabold text-white transition hover:bg-gray-800 disabled:opacity-70"
             >
-              {joining ? "Joining..." : "Join Room"}
+              {joining ? "Joining Workspace..." : "Join Workspace →"}
             </button>
           </div>
         ) : (
-          <div className="rounded-2xl border border-[#1f1f1f] bg-[#111111] p-6">
-            <p className="text-red-400">{error}</p>
+          <div className="rounded-2xl border border-red-300 bg-red-50 p-8 text-center">
+            <p className="font-semibold text-red-600">{error}</p>
           </div>
         )}
       </main>
@@ -153,17 +153,17 @@ function GuestJoinSection({
 
   if (isLoggedIn === null) return null;
   if (isLoggedIn) {
-    return <p className="mt-4 text-sm text-gray-300">You are logged in and will join with your account.</p>;
+    return <p className="mt-4 text-sm font-semibold text-gray-700">You are logged in and will join with your account.</p>;
   }
 
   return (
-    <div className="mt-4 rounded-xl border border-[#292929] bg-[#0f0f0f] p-4">
-      <p className="text-sm text-[#c4b5fd]">You are joining as guest.</p>
+    <div className="mt-5 rounded-xl border border-gray-300 bg-gray-50 p-4">
+      <p className="text-sm font-bold text-black">You are joining as guest.</p>
       <input
         value={displayName}
         onChange={(event) => setDisplayName(event.target.value)}
         placeholder="Display name (or we generate one)"
-        className="mt-3 w-full rounded-lg border border-[#2a2a2a] bg-[#101010] px-3 py-2 outline-none focus:border-[#7C3AED]"
+        className="mt-3 w-full rounded-lg border-2 border-gray-300 bg-white px-4 py-2.5 text-black font-medium outline-none focus:border-black"
       />
     </div>
   );

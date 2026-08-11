@@ -47,8 +47,8 @@ class TerminalManager {
 
   public assertDockerReady() {
     try {
-      execFileSync("docker", ["info"], { stdio: "ignore", timeout: 5000 });
-      execFileSync("docker", ["image", "inspect", SANDBOX_IMAGE], { stdio: "ignore", timeout: 5000 });
+      execFileSync("docker", ["info"], { stdio: "ignore", timeout: 3000 });
+      execFileSync("docker", ["image", "inspect", SANDBOX_IMAGE], { stdio: "ignore", timeout: 3000 });
       return true;
     } catch {
       return false;
@@ -122,12 +122,72 @@ class TerminalManager {
     return session;
   }
 
+  startNativeShellSession(sessionId: string, command: string, args: string[], cwd: string, syncRoot = cwd) {
+    this.stopSession(sessionId);
+
+    const fullCommand = buildShellCommand(command, args || []);
+
+    const session: Session = {
+      output: [],
+      running: true,
+      exitCode: null,
+      error: null,
+      cwd,
+      syncRoot,
+      synced: false,
+      containerName: "",
+      releaseHeld: false,
+      usesDocker: false,
+    };
+    this.sessions.set(sessionId, session);
+
+    try {
+      const proc = spawn("sh", ["-c", fullCommand], {
+        cwd: cwd || syncRoot,
+        env: { ...process.env, PATH: process.env.PATH },
+      });
+
+      session.process = proc;
+
+      proc.stdout?.on("data", (data) => {
+        this.pushOutput(session, data.toString());
+      });
+
+      proc.stderr?.on("data", (data) => {
+        this.pushOutput(session, data.toString());
+      });
+
+      proc.on("error", (err) => {
+        this.pushOutput(session, `\r\n\x1b[31mShell error: ${err.message}\x1b[0m\r\n`);
+        session.running = false;
+        session.exitCode = 1;
+        this.scheduleCleanup(sessionId, session);
+      });
+
+      proc.on("close", (code) => {
+        session.running = false;
+        session.exitCode = code;
+        this.pushOutput(session, `\r\nProcess exited with code ${code ?? 0}\r\n`);
+        this.scheduleCleanup(sessionId, session);
+      });
+
+      return proc;
+    } catch (err: any) {
+      this.pushOutput(session, `\r\n\x1b[31mExecution error: ${err.message}\x1b[0m\r\n`);
+      session.running = false;
+      session.exitCode = 1;
+      this.scheduleCleanup(sessionId, session);
+      return null;
+    }
+  }
+
   startSession(sessionId: string, command: string, args: string[], cwd: string, syncRoot = cwd, allowNetwork = false) {
     this.stopSession(sessionId);
     const dockerReady = this.assertDockerReady();
+
     if (!dockerReady) {
-      // Fallback silently to running command or code via Piston
-      return this.startPistonSession(sessionId, "bash", command, cwd, syncRoot);
+      // Use native shell execution so users can run interactive commands (cd, npm install, npm run dev, node, python)
+      return this.startNativeShellSession(sessionId, command, args, cwd, syncRoot);
     }
 
     if (!executionQueue.acquireTerminal()) {
@@ -198,10 +258,9 @@ class TerminalManager {
         this.pushOutput(session, data.toString());
       });
 
-      proc.on("error", (err) => {
-        // If docker spawn errored out, fallback silently to Piston
+      proc.on("error", () => {
         this.releaseCapacity(session);
-        this.startPistonSession(sessionId, "bash", fullCommand, cwd, syncRoot);
+        this.startNativeShellSession(sessionId, command, args, cwd, syncRoot);
       });
 
       proc.on("close", (code) => {
@@ -215,7 +274,7 @@ class TerminalManager {
       this.sessions.set(sessionId, session);
       return proc;
     } catch {
-      return this.startPistonSession(sessionId, "bash", fullCommand, cwd, syncRoot);
+      return this.startNativeShellSession(sessionId, command, args, cwd, syncRoot);
     }
   }
 

@@ -42,6 +42,7 @@ type LeftSidebarProps = {
   onClearBreakpoints: () => void;
   onRemoveBreakpoint: (file: string, line: number) => void;
   currentCode?: string;
+  onApplyCode?: (code: string, fileName?: string) => void;
   isTeacher?: boolean;
   onSaveWork?: () => void;
   onSessionEnd?: () => void;
@@ -143,7 +144,16 @@ export default function LeftSidebar(props: LeftSidebarProps) {
         </div>
         <div style={{ flex: 1, overflow: "hidden" }}>
           {props.activePanel === "whiteboard" && <Whiteboard roomId={props.roomId} currentUserId={props.currentUserId} />}
-          {props.activePanel === "ai" && <AIAssistant currentCode={props.currentCode || ""} language={props.language} />}
+          {props.activePanel === "ai" && (
+            <AIAssistant
+              currentCode={props.currentCode || ""}
+              language={props.language}
+              roomId={props.roomId}
+              files={props.files}
+              activeFileName={props.activeFile}
+              onApplyCode={props.onApplyCode}
+            />
+          )}
           {props.activePanel === "notes" && <TeacherNotes roomId={props.roomId} currentUserId={props.currentUserId} currentUserName={props.currentUserName} isTeacher={props.isTeacher} />}
           {props.activePanel === "timer" && <SessionTimer isTeacher={props.isTeacher} onSaveWork={props.onSaveWork} onSessionEnd={props.onSessionEnd} roomId={props.roomId} currentUserId={props.currentUserId} />}
         </div>

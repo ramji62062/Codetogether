@@ -6,8 +6,8 @@ export default function Loading() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#0a0a0a",
-        color: "#fff",
+        background: "#ffffff",
+        color: "#000000",
         fontFamily: "'Inter', sans-serif",
       }}
     >
@@ -16,14 +16,14 @@ export default function Loading() {
           style={{
             width: 40,
             height: 40,
-            border: "3px solid #222",
-            borderTopColor: "#7C3AED",
+            border: "3px solid #e5e7eb",
+            borderTopColor: "#000000",
             borderRadius: "50%",
             animation: "spin 0.8s linear infinite",
             margin: "0 auto 16px",
           }}
         />
-        <p style={{ fontSize: 14, color: "#999" }}>Loading…</p>
+        <p style={{ fontSize: 14, color: "#4b5563", fontWeight: 600 }}>Loading…</p>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     </div>

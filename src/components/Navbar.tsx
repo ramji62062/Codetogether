@@ -70,47 +70,49 @@ export default function Navbar() {
   }
 
   return (
-    <header className="mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-5 sm:px-8">
-      <Link href="/" className="text-xl font-extrabold tracking-tight text-[#7C3AED] sm:text-2xl">
-        CodeTogether
-      </Link>
+    <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white shadow-sm">
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-4 sm:px-8">
+        <Link href="/" className="text-xl font-black tracking-tight text-black sm:text-2xl">
+          Code<span className="text-black">Together</span>
+        </Link>
 
-      {loading ? (
-        <div className="h-9 w-28 animate-pulse rounded-lg bg-[#171717]" />
-      ) : user ? (
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#2a2a2a] text-xs font-bold text-[#c4b5fd]">
-            {getInitials(displayName)}
+        {loading ? (
+          <div className="h-9 w-28 animate-pulse rounded-lg bg-gray-200" />
+        ) : user ? (
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-black text-xs font-bold text-white">
+              {getInitials(displayName)}
+            </div>
+            <Link
+              href="/dashboard"
+              className="rounded-lg border border-black bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-gray-100"
+            >
+              Dashboard →
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800"
+            >
+              Logout
+            </button>
           </div>
-          <Link
-            href="/dashboard"
-            className="rounded-lg border border-[#7C3AED]/60 px-3 py-2 text-sm text-white transition hover:border-[#7C3AED] hover:bg-[#7C3AED]/10"
-          >
-            Dashboard
-          </Link>
-          <button
-            onClick={handleLogout}
-            className="rounded-lg bg-[#7C3AED] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#6d28d9]"
-          >
-            Logout
-          </button>
-        </div>
-      ) : (
-        <div className="flex items-center gap-3">
-          <Link
-            href="/login"
-            className="rounded-lg border border-transparent px-4 py-2 text-sm text-gray-200 transition-all duration-200 hover:border-[#7C3AED] hover:text-white"
-          >
-            Login
-          </Link>
-          <Link
-            href="/signup"
-            className="rounded-lg bg-[#7C3AED] px-4 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-[#6d28d9]"
-          >
-            Sign Up
-          </Link>
-        </div>
-      )}
+        ) : (
+          <div className="flex items-center gap-3">
+            <Link
+              href="/login"
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-black transition-all duration-200 hover:border-black hover:bg-gray-50"
+            >
+              Login
+            </Link>
+            <Link
+              href="/signup"
+              className="rounded-lg bg-black px-4 py-2 text-sm font-bold text-white transition-all duration-200 hover:bg-gray-800"
+            >
+              Get Started
+            </Link>
+          </div>
+        )}
+      </div>
     </header>
   );
 }
