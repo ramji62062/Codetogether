@@ -1,11 +1,21 @@
 "use client";
 
-import React from "react";
-import { Monitor, Download, Apple, Terminal as TerminalIcon, Shield } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Monitor, Download, Apple, Terminal as TerminalIcon, Shield, ExternalLink, Clock } from "lucide-react";
+import Link from "next/link";
 
 export default function DownloadPage() {
-  const handleDownload = (platform: string) => {
-    window.open(`https://github.com/ramji62062/Codetogether/releases/latest`, "_blank");
+  const [hasRelease, setHasRelease] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch("https://api.github.com/repos/ramji62062/Codetogether/releases/latest")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setHasRelease(!!data?.tag_name))
+      .catch(() => setHasRelease(false));
+  }, []);
+
+  const handleDownload = () => {
+    window.open("https://github.com/ramji62062/Codetogether/releases/latest", "_blank");
   };
 
   const platforms = [
@@ -40,12 +50,12 @@ export default function DownloadPage() {
       {/* Header */}
       <header className="border-b border-[#1e1e2e] px-6 py-4">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <a href="/" className="flex items-center gap-2 text-[#e2e8f0] font-bold text-lg">
+          <Link href="/" className="flex items-center gap-2 text-[#e2e8f0] font-bold text-lg no-underline">
             <span className="text-[#22d3ee] font-mono">&lt;/&gt;</span> CodeTogether
-          </a>
-          <a href="/" className="text-[#94a3b8] hover:text-white text-sm transition-colors">
+          </Link>
+          <Link href="/" className="text-[#94a3b8] hover:text-white text-sm transition-colors no-underline">
             Back to App
-          </a>
+          </Link>
         </div>
       </header>
 
@@ -74,26 +84,66 @@ export default function DownloadPage() {
           </div>
         </div>
 
+        {/* Coming Soon Banner */}
+        {hasRelease === false && (
+          <div className="max-w-2xl w-full mb-10 bg-[#12121a] border border-amber-500/30 rounded-2xl p-6 text-center">
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <Clock size={20} className="text-amber-400" />
+              <h3 className="text-lg font-semibold text-amber-300">Desktop App — Coming Soon</h3>
+            </div>
+            <p className="text-[#94a3b8] text-sm mb-4">
+              We&apos;re building the desktop app right now. In the meantime, use CodeTogether directly in your browser — it has all the same features.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <Link
+                href="/signup"
+                className="px-6 py-2.5 bg-white rounded-lg text-black text-sm font-bold no-underline hover:bg-gray-200 transition-colors"
+              >
+                Try in Browser
+              </Link>
+              <a
+                href="https://github.com/ramji62062/Codetogether"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-6 py-2.5 border border-[#333] rounded-lg text-gray-300 text-sm no-underline hover:border-gray-500 transition-colors inline-flex items-center gap-2"
+              >
+                View on GitHub <ExternalLink size={12} />
+              </a>
+            </div>
+          </div>
+        )}
+
         {/* Platform Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl w-full mb-12">
-          {platforms.map((platform) => (
-            <button
-              key={platform.name}
-              onClick={() => handleDownload(platform.name.toLowerCase())}
-              className={`group relative bg-[#12121a] border border-[#1e1e2e] rounded-2xl p-6 text-left transition-all hover:border-[#333] hover:shadow-lg hover:shadow-black/20 cursor-pointer`}
-            >
-              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${platform.color} flex items-center justify-center text-white mb-4 group-hover:scale-110 transition-transform`}>
-                {platform.icon}
-              </div>
-              <h3 className="text-lg font-semibold text-[#e2e8f0] mb-1">{platform.name}</h3>
-              <p className="text-sm text-[#94a3b8] mb-3">{platform.description}</p>
-              <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r ${platform.color} ${platform.hoverColor} text-white text-sm font-medium transition-all`}>
-                <Download size={14} />
-                Download {platform.format}
-              </div>
-            </button>
-          ))}
-        </div>
+        {hasRelease !== false && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl w-full mb-12">
+            {platforms.map((platform) => (
+              <button
+                key={platform.name}
+                onClick={handleDownload}
+                className={`group relative bg-[#12121a] border border-[#1e1e2e] rounded-2xl p-6 text-left transition-all hover:border-[#333] hover:shadow-lg hover:shadow-black/20 cursor-pointer`}
+              >
+                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${platform.color} flex items-center justify-center text-white mb-4 group-hover:scale-110 transition-transform`}>
+                  {platform.icon}
+                </div>
+                <h3 className="text-lg font-semibold text-[#e2e8f0] mb-1">{platform.name}</h3>
+                <p className="text-sm text-[#94a3b8] mb-3">{platform.description}</p>
+                <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r ${platform.color} ${platform.hoverColor} text-white text-sm font-medium transition-all`}>
+                  <Download size={14} />
+                  Download {platform.format}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {hasRelease === true && (
+          <p className="text-[#64748b] text-xs mb-12">
+            Downloads from{" "}
+            <a href="https://github.com/ramji62062/Codetogether/releases" target="_blank" rel="noopener noreferrer" className="text-sky-400 hover:underline">
+              GitHub Releases
+            </a>
+          </p>
+        )}
 
         {/* Features */}
         <div className="max-w-3xl w-full">
