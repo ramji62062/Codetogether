@@ -14,6 +14,7 @@ import {
 import type { FileItem } from "@/components/FileExplorer";
 import { supabase } from "@/lib/supabase";
 import { localAgentClient } from "@/lib/local-agent-client";
+import { isElectron, getElectronAPIOrNull } from "@/lib/electron-bridge";
 
 // ─────────────────────────────────────────────────────────────────────
 // Types
@@ -203,6 +204,13 @@ export default function TerminalPanel({
       return;
     }
 
+    // Electron native terminal
+    const electronAPI = getElectronAPIOrNull();
+    if (electronAPI && rt.transport === "direct-local") {
+      electronAPI.terminal.write(tid, data);
+      return;
+    }
+
     if (rt.transport === "direct-local") {
       if (!localAgentClient.sendInput(tid, data) && rt.pendingInput.length < 200) {
         rt.pendingInput.push(data);
@@ -220,7 +228,10 @@ export default function TerminalPanel({
     if (!rt || !rt.attached || rt.pendingInput.length === 0) return;
     const pending = rt.pendingInput.splice(0);
     for (const data of pending) {
-      if (rt.transport === "direct-local") {
+      const electronAPI = getElectronAPIOrNull();
+      if (electronAPI && rt.transport === "direct-local") {
+        electronAPI.terminal.write(terminalId, data);
+      } else if (rt.transport === "direct-local") {
         localAgentClient.sendInput(terminalId, data);
       } else {
         sendWs({ type: "input", roomId, terminalId, data });
@@ -228,7 +239,7 @@ export default function TerminalPanel({
     }
   }, [roomId, sendWs]);
 
-  // ── Attach a tab to the terminal (Local Agent or Server PTY) ──
+  // ── Attach a tab to the terminal (Electron, Local Agent, or Server PTY) ──
   const attachTerminal = useCallback(async (tabId: string, terminalId: string) => {
     const rt = runtimesRef.current.get(tabId);
     if (!rt) return;
@@ -241,6 +252,29 @@ export default function TerminalPanel({
     rt.attached = false;
     (rt as any)._lastAttachTime = Date.now();
     setTabs((prev) => prev.map((t) => (t.id === tabId ? { ...t, attached: false } : t)));
+
+    // PRIORITY 0: Electron - use native terminal on user's machine
+    const electronAPI = getElectronAPIOrNull();
+    if (electronAPI) {
+      rt.transport = "direct-local";
+      try {
+        const result = await electronAPI.terminal.create({
+          id: terminalId,
+          cols: rt.term.cols,
+          rows: rt.term.rows,
+        });
+        if (result.ok) {
+          rt.attached = true;
+          (rt as any)._attaching = false;
+          setTabs((prev) => prev.map((t) => (t.id === tabId ? { ...t, attached: true } : t)));
+          flushPendingInput(terminalId);
+        }
+      } catch (err) {
+        console.error("[Electron] Terminal create failed:", err);
+        (rt as any)._attaching = false;
+      }
+      return;
+    }
 
     // PRIORITY 1: Route to Local Agent if connected (runs code on user's machine)
     if (canUseDirectLocalAgent() && localAgentClient.isConnected()) {
@@ -416,7 +450,12 @@ export default function TerminalPanel({
     rt.fit.fit();
     if (rt.attached) {
       if (rt.transport === "direct-local") {
-        localAgentClient.resizeTerminal(tab.terminalId, rt.term.cols, rt.term.rows);
+        const electronAPI = getElectronAPIOrNull();
+        if (electronAPI) {
+          electronAPI.terminal.resize(tab.terminalId, rt.term.cols, rt.term.rows);
+        } else {
+          localAgentClient.resizeTerminal(tab.terminalId, rt.term.cols, rt.term.rows);
+        }
       } else {
         sendWs({ type: "resize", roomId, terminalId: tab.terminalId, cols: rt.term.cols, rows: rt.term.rows });
       }
@@ -499,7 +538,8 @@ function computeRunCommand(lang: string, activePath: string, code: string): stri
     const activeContent = (codeRef && codeRef.current) !== undefined ? codeRef.current : "";
     const currentCode = activeContent || currentFiles.find((f) => normalizePath(f.path || f.name) === normalizePath(activeFileName))?.content || "";
 
-    // If local agent, run through PTY
+    // If Electron or local agent, run through local terminal
+    const electronAPI = getElectronAPIOrNull();
     if (rt.attached && rt.transport === "direct-local") {
       const updatedFiles = currentFiles.map((f) => {
         if (!f.isFolder && normalizePath(f.path || f.name) === normalizePath(activeFileName)) {
@@ -531,9 +571,15 @@ function computeRunCommand(lang: string, activePath: string, code: string): stri
       } catch {}
       const prefix = projectRoot && projectRoot !== "." ? `cd ${projectRoot} && ` : "";
       rt.term.write(`\r\n\x1b[36m# Running ${activeFileName || "script"}\x1b[0m\r\n`);
-      void saveFilesToWorkspace();
-      for (const f of updatedFiles) {
-        if (!f.isFolder) localAgentClient.saveFile(f.path || f.name, f.content || "");
+      if (electronAPI) {
+        for (const f of updatedFiles) {
+          if (!f.isFolder) await electronAPI.fs.write(f.path || f.name, f.content || "");
+        }
+      } else {
+        void saveFilesToWorkspace();
+        for (const f of updatedFiles) {
+          if (!f.isFolder) localAgentClient.saveFile(f.path || f.name, f.content || "");
+        }
       }
       sendInput(tab.terminalId, `${prefix}${execCmd}\n`);
       return;
@@ -583,7 +629,22 @@ function computeRunCommand(lang: string, activePath: string, code: string): stri
       updatedFiles.push({ name: activeFileName, path: activeFileName, content: currentCode, language });
     }
 
-    // 1. If running on LOCAL AGENT (direct-local), execute through the real local terminal
+    // 1a. If running in ELECTRON, save files locally and execute in local terminal
+    const electronAPI = getElectronAPIOrNull();
+    if (rt.attached && rt.transport === "direct-local" && electronAPI) {
+      const projectRoot = findProjectRoot(updatedFiles, activeFileName);
+      const execCmd = computeRunCommand(language, activeFileName, currentCode);
+      const prefix = projectRoot && projectRoot !== "." ? `cd "${projectRoot}" && ` : "";
+      rt.term.write(`\r\n\x1b[1;36m▶ Running: ${execCmd}\x1b[0m\r\n`);
+      // Save all files to local disk
+      for (const f of updatedFiles) {
+        if (!f.isFolder) await electronAPI.fs.write(f.path || f.name, f.content || "");
+      }
+      electronAPI.terminal.write(tab.terminalId, `${prefix}${execCmd}\n`);
+      return;
+    }
+
+    // 1b. If running on LOCAL AGENT, execute through the real local terminal
     if (rt.attached && rt.transport === "direct-local") {
       const projectRoot = findProjectRoot(updatedFiles, activeFileName);
       const execCmd = computeRunCommand(language, activeFileName, currentCode);
@@ -649,7 +710,12 @@ function computeRunCommand(lang: string, activePath: string, code: string): stri
     const tab = tabs.find((t) => t.id === tabId);
     if (tab && rt) {
       if (rt.transport === "direct-local") {
-        localAgentClient.killTerminal(tab.terminalId);
+        const electronAPI = getElectronAPIOrNull();
+        if (electronAPI) {
+          electronAPI.terminal.kill(tab.terminalId);
+        } else {
+          localAgentClient.killTerminal(tab.terminalId);
+        }
       } else {
         sendWs({ type: "kill", roomId, terminalId: tab.terminalId });
       }
@@ -750,6 +816,52 @@ function computeRunCommand(lang: string, activePath: string, code: string): stri
         }
       }).catch(() => {});
     }
+  }, [attachTerminal, flushPendingInput]);
+
+  // ── Electron Terminal Listeners ──
+  useEffect(() => {
+    const electronAPI = getElectronAPIOrNull();
+    if (!electronAPI) return;
+
+    setIsLocalShell(true);
+    setShellName("local terminal");
+    setConnPhase("online");
+
+    const unsubOutput = electronAPI.terminal.onOutput((id, data) => {
+      const tab = tabsRef.current.find((t) => t.terminalId === id);
+      const rt = tab ? runtimesRef.current.get(tab.id) : null;
+      if (rt) {
+        rt.term.write(data);
+        onOutputLogRef.current?.(data);
+        const foundUrls = extractLocalUrls(data);
+        if (foundUrls.length > 0) {
+          setDetectedUrls((prev) => Array.from(new Set([...prev, ...foundUrls])));
+        }
+      }
+    });
+
+    const unsubExit = electronAPI.terminal.onExit((id, exitCode) => {
+      const tab = tabsRef.current.find((t) => t.terminalId === id);
+      const rt = tab ? runtimesRef.current.get(tab.id) : null;
+      if (rt) {
+        rt.attached = false;
+        rt.term.writeln(`\r\n\x1b[90m[Process exited with code ${exitCode}]\x1b[0m`);
+        setTabs((prev) => prev.map((t) => (t.terminalId === id ? { ...t, attached: false } : t)));
+      }
+    });
+
+    // Auto-attach first tab
+    for (const tab of tabsRef.current) {
+      const rt = runtimesRef.current.get(tab.id);
+      if (rt && !rt.attached && !(rt as any)._attaching) {
+        attachTerminal(tab.id, tab.terminalId);
+      }
+    }
+
+    return () => {
+      unsubOutput();
+      unsubExit();
+    };
   }, [attachTerminal, flushPendingInput]);
 
   // ── Terminal WebSocket ──
@@ -1049,7 +1161,9 @@ function computeRunCommand(lang: string, activePath: string, code: string): stri
         {isLocalShell && shellName && (
           <div className="flex items-center gap-1.5 bg-emerald-950/70 border border-emerald-700/60 rounded px-2 py-0.5 mr-1">
             <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            <span className="text-[11px] font-mono text-emerald-300 font-medium">{shellName.split("/").pop()}</span>
+            <span className="text-[11px] font-mono text-emerald-300 font-medium">
+              {getElectronAPIOrNull() ? "Electron" : shellName.split("/").pop()}
+            </span>
           </div>
         )}
 

@@ -5,3 +5,14 @@ node_modules/
 temp_workspaces/
 temp_runs/
 tsconfig.tsbuildinfo
+
+# Electron
+dist-electron/
+out/
+*.dmg
+*.exe
+*.AppImage
+*.deb
+electron/build-resources/*.icns
+electron/build-resources/*.ico
+electron/build-resources/*.png

@@ -2,13 +2,19 @@
   "name": "codetogether",
   "version": "0.1.0",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "dev": "node server.js",
     "build": "next build",
     "start": "NODE_ENV=production node server.js",
     "lint": "next lint",
     "agent": "node agent/index.js",
-    "docker:sandbox": "docker build -f docker/sandbox.Dockerfile -t codetogether-sandbox:latest ."
+    "docker:sandbox": "docker build -f docker/sandbox.Dockerfile -t codetogether-sandbox:latest .",
+    "electron:dev": "npm run build && electron .",
+    "electron:build": "npm run build && electron-builder --mac --win --linux",
+    "electron:build:mac": "npm run build && electron-builder --mac",
+    "electron:build:win": "npm run build && electron-builder --win",
+    "electron:build:linux": "npm run build && electron-builder --linux"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
@@ -39,6 +45,8 @@
     "@types/nodemailer": "^8.0.1",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8",
     "eslint": "^8",
     "eslint-config-next": "14.2.35",
     "postcss": "^8",
