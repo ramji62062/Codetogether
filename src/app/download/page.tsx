@@ -80,7 +80,7 @@ export default function DownloadPage() {
   }, []);
 
   const installCommand = useMemo(() => {
-    const baseUrl = origin || "https://codetogether-delta.vercel.app";
+    const baseUrl = origin || "https://codabase.onrender.com";
     return `curl -fsSL ${baseUrl}/install-macos.sh | bash`;
   }, [origin]);
 
