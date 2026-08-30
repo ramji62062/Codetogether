@@ -20,16 +20,19 @@ jobs:
           python-version: '3.11'
       - run: pip install setuptools
       - run: npm ci
+      - name: Write .env.local
+        shell: bash
+        run: |
+          echo "NEXT_PUBLIC_SUPABASE_URL=${{ vars.NEXT_PUBLIC_SUPABASE_URL }}" > .env.local
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" >> .env.local
+          echo "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" >> .env.local
+          echo "NEXT_PUBLIC_SITE_URL=${{ vars.NEXT_PUBLIC_SITE_URL }}" >> .env.local
+          echo "SMTP_USER=${{ vars.SMTP_USER }}" >> .env.local
+          echo "SMTP_PASS=${{ secrets.SMTP_PASS }}" >> .env.local
+          echo "NEXT_PUBLIC_ANTHROPIC_API_KEY=${{ secrets.NEXT_PUBLIC_ANTHROPIC_API_KEY }}" >> .env.local
+          echo "GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}" >> .env.local
       - name: Build Next.js
         run: npx next build
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL }}
-          SMTP_USER: ${{ vars.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
-          NEXT_PUBLIC_ANTHROPIC_API_KEY: ${{ secrets.NEXT_PUBLIC_ANTHROPIC_API_KEY }}
       - name: Build Electron Mac
         run: npx electron-builder --mac
       - uses: actions/upload-artifact@v4
@@ -47,16 +50,21 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Write .env.local
+        shell: pwsh
+        run: |
+          Set-Content -Path .env.local -Value @(
+            "NEXT_PUBLIC_SUPABASE_URL=${{ vars.NEXT_PUBLIC_SUPABASE_URL }}",
+            "NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}",
+            "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}",
+            "NEXT_PUBLIC_SITE_URL=${{ vars.NEXT_PUBLIC_SITE_URL }}",
+            "SMTP_USER=${{ vars.SMTP_USER }}",
+            "SMTP_PASS=${{ secrets.SMTP_PASS }}",
+            "NEXT_PUBLIC_ANTHROPIC_API_KEY=${{ secrets.NEXT_PUBLIC_ANTHROPIC_API_KEY }}",
+            "GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}"
+          )
       - name: Build Next.js
         run: npx next build
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL }}
-          SMTP_USER: ${{ vars.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
-          NEXT_PUBLIC_ANTHROPIC_API_KEY: ${{ secrets.NEXT_PUBLIC_ANTHROPIC_API_KEY }}
       - name: Build Electron Windows
         run: npx electron-builder --win
       - uses: actions/upload-artifact@v4
@@ -78,16 +86,19 @@ jobs:
           python-version: '3.11'
       - run: pip install setuptools
       - run: npm ci
+      - name: Write .env.local
+        shell: bash
+        run: |
+          echo "NEXT_PUBLIC_SUPABASE_URL=${{ vars.NEXT_PUBLIC_SUPABASE_URL }}" > .env.local
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" >> .env.local
+          echo "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" >> .env.local
+          echo "NEXT_PUBLIC_SITE_URL=${{ vars.NEXT_PUBLIC_SITE_URL }}" >> .env.local
+          echo "SMTP_USER=${{ vars.SMTP_USER }}" >> .env.local
+          echo "SMTP_PASS=${{ secrets.SMTP_PASS }}" >> .env.local
+          echo "NEXT_PUBLIC_ANTHROPIC_API_KEY=${{ secrets.NEXT_PUBLIC_ANTHROPIC_API_KEY }}" >> .env.local
+          echo "GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}" >> .env.local
       - name: Build Next.js
         run: npx next build
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL }}
-          SMTP_USER: ${{ vars.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
-          NEXT_PUBLIC_ANTHROPIC_API_KEY: ${{ secrets.NEXT_PUBLIC_ANTHROPIC_API_KEY }}
       - name: Build Electron Linux
         run: npx electron-builder --linux
       - uses: actions/upload-artifact@v4
