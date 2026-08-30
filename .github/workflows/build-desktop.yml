@@ -20,13 +20,22 @@ jobs:
           python-version: '3.11'
       - run: pip install setuptools
       - run: npm ci
-      - run: npm run electron:build:mac
+      - name: Build Next.js
+        run: npx next build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL }}
+          SMTP_USER: ${{ vars.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          NEXT_PUBLIC_ANTHROPIC_API_KEY: ${{ secrets.NEXT_PUBLIC_ANTHROPIC_API_KEY }}
+      - name: Build Electron Mac
+        run: npx electron-builder --mac
       - uses: actions/upload-artifact@v4
         with:
           name: mac-builds
-          path: |
-            dist-electron/*.dmg
-            dist-electron/*.zip
+          path: dist-electron/*.dmg
           retention-days: 30
 
   build-windows:
@@ -38,12 +47,22 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npm run electron:build:win
+      - name: Build Next.js
+        run: npx next build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL }}
+          SMTP_USER: ${{ vars.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          NEXT_PUBLIC_ANTHROPIC_API_KEY: ${{ secrets.NEXT_PUBLIC_ANTHROPIC_API_KEY }}
+      - name: Build Electron Windows
+        run: npx electron-builder --win
       - uses: actions/upload-artifact@v4
         with:
           name: windows-builds
-          path: |
-            dist-electron/*.exe
+          path: dist-electron/*.exe
           retention-days: 30
 
   build-linux:
@@ -58,9 +77,19 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install setuptools
-      - run: sudo apt-get update && sudo apt-get install -y python3-distutils
       - run: npm ci
-      - run: npm run electron:build:linux
+      - name: Build Next.js
+        run: npx next build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL }}
+          SMTP_USER: ${{ vars.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          NEXT_PUBLIC_ANTHROPIC_API_KEY: ${{ secrets.NEXT_PUBLIC_ANTHROPIC_API_KEY }}
+      - name: Build Electron Linux
+        run: npx electron-builder --linux
       - uses: actions/upload-artifact@v4
         with:
           name: linux-builds
@@ -84,6 +113,7 @@ jobs:
         with:
           draft: false
           prerelease: false
+          generate_release_notes: true
           files: |
             artifacts/mac-builds/*
             artifacts/windows-builds/*
