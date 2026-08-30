@@ -154,6 +154,7 @@ export default function Home() {
               </Link>
             ) : (
               <>
+                <Link href="/download" className="px-4 py-2 border border-ct-subtle rounded-lg text-gray-300 text-sm no-underline hover:border-gray-500 transition-colors">Download App</Link>
                 <Link href="/login" className="px-4 py-2 border border-ct-subtle rounded-lg text-gray-300 text-sm no-underline hover:border-gray-500 transition-colors">Login</Link>
                 <Link href="/signup" className="px-[18px] py-2 bg-white rounded-lg text-black text-sm font-bold no-underline hover:bg-gray-200 transition-colors">Get Started</Link>
               </>
@@ -171,6 +172,7 @@ export default function Home() {
                 {id.replace(/-/g, " ")}
               </button>
             ))}
+            <Link href="/download" className="text-gray-300 no-underline">Download App</Link>
             <Link href="/login" className="text-gray-300 no-underline">Login</Link>
             <Link href="/signup" className="text-gray-400 font-bold no-underline">Get Started →</Link>
           </div>
@@ -332,6 +334,9 @@ export default function Home() {
             <Link href="/signup" className="px-9 py-4 bg-gradient-to-br from-white to-gray-300 rounded-[14px] text-black text-[17px] font-extrabold no-underline shadow-glow-white-lg hover:scale-105 transition-transform">
               Create Free Account
             </Link>
+            <Link href="/download" className="px-7 py-4 bg-transparent border border-ct-subtle rounded-[14px] text-gray-300 text-[17px] no-underline hover:border-gray-500 transition-colors">
+              Download Desktop App
+            </Link>
             <Link href="/login" className="px-7 py-4 bg-transparent border border-ct-subtle rounded-[14px] text-gray-300 text-[17px] no-underline hover:border-gray-500 transition-colors">
               Sign In
             </Link>
@@ -344,8 +349,15 @@ export default function Home() {
         <div className="max-w-[1200px] mx-auto flex flex-col items-center gap-5">
           <div className="text-[22px] font-black text-white">Code<span className="text-gray-400">Together</span></div>
           <div className="flex gap-7 flex-wrap justify-center">
-            {["Features","How it Works","Account Types","Login","Sign Up"].map(l => (
-              <span key={l} className="text-ct-dimmer text-sm cursor-pointer hover:text-white transition-colors">{l}</span>
+            {[
+              { label: "Features", href: "#features" },
+              { label: "How it Works", href: "#how-it-works" },
+              { label: "Account Types", href: "#account-types" },
+              { label: "Download", href: "/download" },
+              { label: "Login", href: "/login" },
+              { label: "Sign Up", href: "/signup" },
+            ].map(l => (
+              <Link key={l.label} href={l.href} className="text-ct-dimmer text-sm no-underline hover:text-white transition-colors">{l.label}</Link>
             ))}
           </div>
           <p className="text-ct-subtle text-[13px]">© 2026 CodeTogether. Built with Next.js · Supabase · WebRTC </p>
