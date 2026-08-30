@@ -35,7 +35,8 @@ function startServer() {
   return new Promise((resolve, reject) => {
     const serverPath = path.join(__dirname, "..", "server.js");
     if (!fs.existsSync(serverPath)) {
-      reject(new Error("server.js not found at " + serverPath));
+      console.log("[electron] server.js not found, using remote deployment");
+      resolve(null);
       return;
     }
 
@@ -66,14 +67,19 @@ function startServer() {
       }
     });
 
-    serverProcess.on("error", reject);
+    serverProcess.on("error", (err) => {
+      console.error("[electron] server error:", err.message);
+      resolve(null);
+    });
 
-    // Timeout fallback - assume server started
+    // Timeout fallback
     setTimeout(() => resolve(serverPort), 8000);
   });
 }
 
 // ── Create main window ──
+const REMOTE_URL = "https://codabase.onrender.com";
+
 function createWindow(port) {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -92,7 +98,10 @@ function createWindow(port) {
     trafficLightPosition: { x: 12, y: 12 },
   });
 
-  mainWindow.loadURL(`http://localhost:${port}`);
+  // If local server started, use it. Otherwise load remote deployment.
+  const url = port ? `http://localhost:${port}` : REMOTE_URL;
+  console.log("[electron] Loading:", url);
+  mainWindow.loadURL(url);
 
   // Open external links in system browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -308,7 +317,7 @@ app.on("window-all-closed", () => {
   }
   terminals.clear();
 
-  // Kill server
+  // Kill server if running
   if (serverProcess) {
     try { serverProcess.kill("SIGTERM"); } catch {}
     serverProcess = null;
