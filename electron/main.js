@@ -101,7 +101,21 @@ function createWindow(port) {
   // If local server started, use it. Otherwise load remote deployment.
   const url = port ? `http://localhost:${port}` : REMOTE_URL;
   console.log("[electron] Loading:", url);
-  mainWindow.loadURL(url);
+
+  mainWindow.loadURL(url).catch((err) => {
+    console.error("[electron] Failed to load:", err.message);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.loadURL("data:text/html," + encodeURIComponent(`
+        <html><body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;background:#0d1117;color:#c9d1d9;">
+        <div style="text-align:center;max-width:500px;">
+          <h1 style="font-size:24px;">CodeTogether</h1>
+          <p style="color:#8b949e;">Could not connect to the server.</p>
+          <p style="color:#8b949e;font-size:14px;">Please check your internet connection and try again.</p>
+          <button onclick="location.href='${REMOTE_URL}'" style="margin-top:16px;padding:10px 24px;background:#238636;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;">Retry</button>
+        </div></body></html>
+      `));
+    }
+  });
 
   // Open external links in system browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -301,12 +315,13 @@ function getLang(filePath) {
 
 // ── App Lifecycle ──
 app.whenReady().then(async () => {
+  let port = null;
   try {
-    await startServer();
+    port = await startServer();
   } catch (err) {
     console.error("Failed to start server:", err);
   }
-  createWindow(serverPort);
+  createWindow(port);
 });
 
 app.on("window-all-closed", () => {
@@ -327,7 +342,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow(serverPort);
+  if (BrowserWindow.getAllWindows().length === 0) createWindow(null);
 });
 
 app.on("before-quit", () => {
