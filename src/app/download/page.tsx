@@ -1,17 +1,18 @@
 "use client";
 
-import React from "react";
-import { Monitor, Download, Apple, Terminal as TerminalIcon, Shield, ExternalLink } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { Monitor, Download, Apple, Terminal as TerminalIcon, Shield, Copy, Check } from "lucide-react";
 import Link from "next/link";
 
-const RELEASE_URL = "https://github.com/ramji62062/Codetogether/releases/tag/v1.0.3";
+const RELEASE_TAG = "v1.0.3";
+const RELEASE_URL = `https://github.com/ramji62062/Codetogether/releases/tag/${RELEASE_TAG}`;
 
 const platforms = [
   {
     name: "macOS (Apple Silicon)",
     icon: <Apple size={24} />,
     description: "M1, M2, M3, M4 Macs",
-    url: "https://github.com/ramji62062/Codetogether/releases/download/v1.0.3/CodeTogether-arm64-signed.dmg",
+    url: `https://github.com/ramji62062/Codetogether/releases/download/${RELEASE_TAG}/CodeTogether-arm64-signed.dmg`,
     color: "from-blue-600 to-indigo-600",
     hoverColor: "hover:from-blue-500 hover:to-indigo-500",
   },
@@ -19,7 +20,7 @@ const platforms = [
     name: "macOS (Intel)",
     icon: <Apple size={24} />,
     description: "Older Intel-based Macs",
-    url: "https://github.com/ramji62062/Codetogether/releases/download/v1.0.3/CodeTogether-intel-signed.dmg",
+    url: `https://github.com/ramji62062/Codetogether/releases/download/${RELEASE_TAG}/CodeTogether-intel-signed.dmg`,
     color: "from-sky-600 to-cyan-600",
     hoverColor: "hover:from-sky-500 hover:to-cyan-500",
   },
@@ -43,7 +44,48 @@ const platforms = [
   },
 ];
 
+function CopyCommand({ command }: { command: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(command);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* ignore */ }
+  };
+
+  return (
+    <div className="flex items-stretch gap-2 rounded-xl border border-[#2a2a3d] bg-[#0b0b12] p-2">
+      <code className="flex-1 overflow-x-auto whitespace-nowrap px-3 py-2 font-mono text-[13px] text-sky-200">
+        {command}
+      </code>
+      <button
+        type="button"
+        onClick={copy}
+        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-black hover:bg-gray-200 cursor-pointer"
+      >
+        {copied ? <Check size={14} /> : <Copy size={14} />}
+        {copied ? "Copied" : "Copy"}
+      </button>
+    </div>
+  );
+}
+
 export default function DownloadPage() {
+  const [origin, setOrigin] = useState("");
+
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
+
+  const installCommand = useMemo(() => {
+    const baseUrl = origin || "https://codetogether-delta.vercel.app";
+    return `curl -fsSL ${baseUrl}/install-macos.sh | bash`;
+  }, [origin]);
+
+  const fixCommand = "xattr -cr /Applications/CodeTogether.app && open /Applications/CodeTogether.app";
+
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white flex flex-col">
       <header className="border-b border-[#1e1e2e] px-6 py-4">
@@ -72,18 +114,30 @@ export default function DownloadPage() {
           </div>
         </div>
 
+        {/* One-Click Install for Mac */}
+        <div className="max-w-2xl w-full mb-10 bg-[#12121a] border border-emerald-500/30 rounded-2xl p-6">
+          <div className="flex items-center gap-2 mb-2">
+            <Apple size={18} className="text-emerald-400" />
+            <h3 className="text-lg font-semibold text-emerald-300">Quick Install on Mac</h3>
+          </div>
+          <p className="text-[#94a3b8] text-sm mb-4">
+            Paste this one command in Terminal. It downloads, installs, and fixes the &quot;damaged&quot; error automatically.
+          </p>
+          <CopyCommand command={installCommand} />
+        </div>
+
         {/* Browser Option */}
         <div className="max-w-2xl w-full mb-10 bg-[#12121a] border border-sky-500/30 rounded-2xl p-6 text-center">
           <h3 className="text-lg font-semibold text-sky-300 mb-2">Try in Browser (No Install)</h3>
           <p className="text-[#94a3b8] text-sm mb-4">
-            Use all features directly in your browser — editor, terminal, video calls, whiteboard, AI.
+            All features — editor, terminal, video calls, whiteboard, AI — directly in your browser.
           </p>
           <Link href="/signup" className="px-6 py-2.5 bg-white rounded-lg text-black text-sm font-bold no-underline hover:bg-gray-200 transition-colors inline-block">
             Open in Browser
           </Link>
         </div>
 
-        {/* Platform Cards */}
+        {/* Manual Downloads */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl w-full mb-12">
           {platforms.map((p) => (
             <a
@@ -105,22 +159,16 @@ export default function DownloadPage() {
           ))}
         </div>
 
-        {/* Install Steps */}
-        <div className="max-w-2xl w-full bg-[#12121a] border border-[#1e1e2e] rounded-2xl p-8 mb-12">
-          <h2 className="text-xl font-semibold text-[#e2e8f0] mb-6">How to Install</h2>
-          <div className="space-y-4">
-            {[
-              { step: "1", text: "Download the .dmg file for your Mac" },
-              { step: "2", text: "Open the downloaded .dmg file" },
-              { step: "3", text: "Drag CodeTogether into your Applications folder" },
-              { step: "4", text: "Open CodeTogether from Applications — done!" },
-            ].map((s) => (
-              <div key={s.step} className="flex gap-4 items-center">
-                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sm font-bold text-white shrink-0">{s.step}</div>
-                <p className="text-[#94a3b8] text-sm">{s.text}</p>
-              </div>
-            ))}
-          </div>
+        {/* Already Downloaded & Blocked? */}
+        <div className="max-w-2xl w-full bg-[#12121a] border border-amber-500/25 rounded-2xl p-8 mb-12">
+          <h2 className="text-xl font-semibold text-amber-200 mb-2">Already downloaded and macOS blocked it?</h2>
+          <p className="text-[#94a3b8] text-sm mb-4">
+            Click <strong>Done</strong> on the warning, then run this command:
+          </p>
+          <CopyCommand command={fixCommand} />
+          <p className="text-[#64748b] text-xs mt-3">
+            Or: System Settings → Privacy &amp; Security → scroll down → click <strong>Open Anyway</strong> next to CodeTogether
+          </p>
         </div>
 
         {/* Features */}
