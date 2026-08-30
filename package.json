@@ -1,6 +1,8 @@
 {
   "name": "codetogether",
   "version": "0.1.0",
+  "description": "Collaborative IDE with real-time code editing, video calls, and local terminal",
+  "author": "Ramji",
   "private": true,
   "main": "electron/main.js",
   "scripts": {
