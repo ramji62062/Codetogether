@@ -301,9 +301,18 @@ export default function TerminalPanel({
         {tabs.map(t => {
           if (t.type === "preview") {
             return (
-              <div key={t.id} className={`absolute inset-0 bg-white ${activeTabId === t.id ? "block" : "hidden"}`}>
-                <iframe src={previewUrl || ""} className="w-full h-full border-0 bg-white" />
-              </div>
+              <div key={t.id} className={`absolute inset-0 flex flex-col bg-white ${activeTabId === t.id ? "flex" : "hidden"}`}>
+  <div className="h-8 bg-gray-100 dark:bg-[#151515] border-b border-gray-200 dark:border-white/10 flex items-center px-3 justify-between shadow-sm z-10">
+    <div className="flex items-center gap-2 flex-1 overflow-hidden">
+      <div className="w-2 h-2 rounded-full bg-green-500"></div>
+      <span className="text-[11px] text-gray-500 font-mono truncate">{previewUrl || "Waiting for port..."}</span>
+    </div>
+    <a href={previewUrl || "#"} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[11px] bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded transition-colors no-underline">
+      Open in Browser
+    </a>
+  </div>
+  <iframe src={previewUrl || ""} className="flex-1 w-full border-0 bg-white" allow="cross-origin-isolated" />
+</div>
             );
           }
           return (

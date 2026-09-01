@@ -150,6 +150,9 @@ function getRoomScheduleDetails(roomName: string | null) {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const [user, setUser] = useState<AppUser | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [libraryRooms, setLibraryRooms] = useState<any[]>([]);
@@ -765,6 +768,14 @@ function WorkspaceCard({
           <div className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-gradient-to-br from-white to-[#cccccc] text-[13px] font-extrabold text-black">
             {(user?.name || user?.email || "U").charAt(0).toUpperCase()}
           </div>
+          
+          <button
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            className="flex items-center gap-[6px] px-[12px] py-[6px] border border-[#222] bg-transparent text-[#aaa] rounded-[8px] cursor-pointer hover:text-white transition-colors text-[13px]"
+          >
+            {mounted ? (theme === "dark" ? "☀️ Light" : "🌙 Dark") : "🌓 Theme"}
+          </button>
+
           <button onClick={async () => { await supabase.auth.signOut(); router.push("/"); }}
             className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-[#222] bg-transparent px-3 py-1.5 text-[13px] text-[#666]">
             <LogOut size={14}/> Logout

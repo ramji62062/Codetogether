@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { 
   Video, Folder, Search, MessageSquare, Heart, 
@@ -18,6 +19,8 @@ const MOCK_LIVE_ROOMS = [
 
 export default function CommunityFeed({ currentUserId }: { currentUserId: string }) {
   const [activeTab, setActiveTab] = useState<"feed" | "live" | "requests">("feed");
+  const [liveRooms, setLiveRooms] = useState<any[]>([]);
+  const router = useRouter();
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [newPostContent, setNewPostContent] = useState("");
@@ -33,6 +36,27 @@ export default function CommunityFeed({ currentUserId }: { currentUserId: string
       .eq('following_id', currentUserId)
       .eq('status', 'pending');
     if (data) setFollowRequests(data);
+  };
+
+  
+  const fetchLiveRooms = async () => {
+    const { data } = await supabase.from('rooms').select('*').eq('is_public', true).order('created_at', { ascending: false });
+    if (data) setLiveRooms(data);
+  };
+
+  useEffect(() => {
+    if (activeTab === "live") fetchLiveRooms();
+  }, [activeTab]);
+
+  const startLiveRoom = async (type: string) => {
+    const code = Math.random().toString(36).substring(2, 8);
+    const { error } = await supabase.from('rooms').insert({
+      name: type === 'masterclass' ? "Masterclass" : "Jam Session",
+      room_code: code,
+      language: "typescript",
+      is_public: true
+    });
+    if (!error) router.push(`/room/${code}`);
   };
 
   useEffect(() => {
@@ -194,10 +218,10 @@ export default function CommunityFeed({ currentUserId }: { currentUserId: string
             </div>
             <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100 dark:border-white/5">
               <div className="flex gap-2">
-                <button className="p-2 text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-500/10 rounded-full transition-colors" title="Upload Video/Image">
+                <button onClick={() => { const url = prompt("Enter video URL:"); if (url) setNewPostContent(p => p + "\n" + url); }} className="p-2 text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-500/10 rounded-full transition-colors cursor-pointer" title="Upload Video/Image">
                   <Video size={20} />
                 </button>
-                <button className="p-2 text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-full transition-colors" title="Attach Live Workspace">
+                <button onClick={() => { const url = prompt("Enter workspace link:"); if (url) setNewPostContent(p => p + "\n[Workspace Attachment](" + url + ")"); }} className="p-2 text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-full transition-colors cursor-pointer" title="Attach Live Workspace">
                   <Folder size={20} />
                 </button>
               </div>
