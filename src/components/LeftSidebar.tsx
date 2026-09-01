@@ -106,7 +106,7 @@ function SettingsPanel({ language, onLanguageChange, roomName, onRoomNameChange 
   );
 }
 
-const FULLSCREEN_PANELS = ["whiteboard", "ai", "notes", "timer"];
+const FULLSCREEN_PANELS = ["whiteboard", "ai", "notes", "timer", "chat"];
 
 type FloatingCallWindowProps = {
   isCallJoined: boolean;
@@ -170,27 +170,11 @@ function FloatingCallWindow({
   if (isMinimized) {
     return (
       <div
-        style={{
-          position: "fixed",
-          left: pos.x,
-          top: pos.y,
-          zIndex: 999999,
-          background: "rgba(18, 18, 26, 0.95)",
-          border: "1px solid rgba(124, 58, 237, 0.4)",
-          borderRadius: 24,
-          padding: "6px 14px",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          boxShadow: "0 12px 32px rgba(0,0,0,0.75), 0 0 20px rgba(124,58,237,0.25)",
-          backdropFilter: "blur(16px)",
-          cursor: "move",
-          userSelect: "none",
-        }}
+        className="rounded-[24px] p-[6px] flex items-center gap-[8px]" style={{ position: "fixed", left: pos.x, top: pos.y, zIndex: 999999, background: "rgba(18, 18, 26, 0.95)", border: "1px solid rgba(124, 58, 237, 0.4)", boxShadow: "0 12px 32px rgba(0, 0, 0, 0.75), 0 0 20px rgba(124, 58, 237, 0.25)", backdropFilter: "blur(16px)", cursor: "move", userSelect: "none" }}
         onMouseDown={handleMouseDown}
       >
         <GripHorizontal size={14} color="#94a3b8" style={{ cursor: "grab" }} />
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div className="flex items-center gap-[6px]">
           <div style={{
             width: 26, height: 26, borderRadius: "50%",
             background: "linear-gradient(135deg,#ffffff,#cccccc)",
@@ -200,13 +184,13 @@ function FloatingCallWindow({
           }}>
             {currentUserName.slice(0, 2).toUpperCase()}
           </div>
-          <span style={{ fontSize: 12, fontWeight: 700, color: "#fff" }}>Call</span>
-          <span style={{ fontSize: 10, background: "#ffffff33", color: "#ffffff", padding: "1px 6px", borderRadius: 10, display: "flex", alignItems: "center", gap: 3 }}>
+          <span className="text-[12px] font-bold" style={{ color: "#fff" }}>Call</span>
+          <span className="text-[10px] p-[1px] rounded-[10px] flex items-center gap-[3px]" style={{ background: "#ffffff33", color: "#ffffff" }}>
             <Users size={10} /> {totalInCall}
           </span>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: 4 }}>
+        <div className="flex items-center gap-[4px]" style={{ marginLeft: 4 }}>
           <button onClick={(e) => { e.stopPropagation(); onMicToggle(); }}
             title={micOn ? "Mute" : "Unmute"}
             style={{
@@ -231,19 +215,12 @@ function FloatingCallWindow({
           </button>
           <button onClick={(e) => { e.stopPropagation(); setIsMinimized(false); }}
             title="Expand call window"
-            style={{
-              background: "rgba(124, 58, 237, 0.2)",
-              border: "1px solid #ffffff", borderRadius: 12, padding: "4px 8px",
-              color: "#ffffff", cursor: "pointer", display: "flex", alignItems: "center",
-            }}>
+            className="rounded-[12px] p-[4px] cursor-pointer flex items-center" style={{ background: "rgba(124, 58, 237, 0.2)", border: "1px solid #ffffff", color: "#ffffff" }}>
             <Maximize2 size={12} />
           </button>
           <button onClick={(e) => { e.stopPropagation(); onLeaveCall(); }}
             title="Leave call"
-            style={{
-              background: "#ea4335", border: "none", borderRadius: 12, padding: "4px 8px",
-              color: "#fff", cursor: "pointer", display: "flex", alignItems: "center",
-            }}>
+            className="border-none rounded-[12px] p-[4px] cursor-pointer flex items-center" style={{ background: "#ea4335", color: "#fff" }}>
             <PhoneOff size={12} />
           </button>
         </div>
@@ -253,19 +230,7 @@ function FloatingCallWindow({
 
   return (
     <div
-      style={{
-        position: "fixed",
-        left: pos.x,
-        top: pos.y,
-        width: 280,
-        zIndex: 999999,
-        background: "rgba(10, 10, 13, 0.98)",
-        border: "1px solid rgba(124, 58, 237, 0.4)",
-        borderRadius: 12,
-        boxShadow: "0 24px 64px rgba(0,0,0,0.85), 0 0 24px rgba(124,58,237,0.2)",
-        backdropFilter: "blur(16px)",
-        overflow: "hidden",
-      }}
+      className="rounded-[12px] overflow-hidden" style={{ position: "fixed", left: pos.x, top: pos.y, width: 280, zIndex: 999999, background: "rgba(10, 10, 13, 0.98)", border: "1px solid rgba(124, 58, 237, 0.4)", boxShadow: "0 24px 64px rgba(0, 0, 0, 0.85), 0 0 24px rgba(124, 58, 237, 0.2)", backdropFilter: "blur(16px)" }}
     >
       {/* Header */}
       <div
@@ -282,24 +247,24 @@ function FloatingCallWindow({
           userSelect: "none",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div className="flex items-center gap-[6px]">
           <GripHorizontal size={12} color="#94a3b8" />
-          <span style={{ fontSize: 11, fontWeight: 700, color: "#f8fafc" }}>
+          <span className="text-[11px] font-bold" style={{ color: "#f8fafc" }}>
             Call ({totalInCall})
           </span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <div className="flex items-center gap-[4px]">
           <button
             onClick={() => setIsMinimized(true)}
             title="Minimize"
-            style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", display: "flex", padding: 3, borderRadius: 4 }}
+            className="border-none cursor-pointer flex p-[3px] rounded-[4px]" style={{ background: "none", color: "#94a3b8" }}
           >
             <Minus size={13} />
           </button>
           <button
             onClick={onShowParticipants}
             title="Show participants panel"
-            style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", display: "flex", padding: 3, borderRadius: 4 }}
+            className="border-none cursor-pointer flex p-[3px] rounded-[4px]" style={{ background: "none", color: "#94a3b8" }}
           >
             <Maximize2 size={13} />
           </button>
@@ -307,7 +272,7 @@ function FloatingCallWindow({
       </div>
 
       {/* Controls */}
-      <div style={{ padding: "10px 12px", display: "flex", gap: 6, justifyContent: "center", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="p-[10px] flex gap-[6px] justify-center" style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.06)" }}>
         <button onClick={onMicToggle} title={micOn ? "Mute" : "Unmute"}
           style={{
             display: "flex", alignItems: "center", justifyContent: "center",
@@ -329,18 +294,13 @@ function FloatingCallWindow({
           {cameraOn ? <Video size={18} /> : <VideoOff size={18} />}
         </button>
         <button onClick={onLeaveCall} title="Leave call"
-          style={{
-            display: "flex", alignItems: "center", justifyContent: "center",
-            width: 40, height: 40, borderRadius: "50%",
-            background: "#ea4335", border: "none",
-            color: "#fff", cursor: "pointer",
-          }}>
+          className="flex items-center justify-center rounded-[50px] border-none cursor-pointer" style={{ width: 40, height: 40, background: "#ea4335", color: "#fff" }}>
           <PhoneOff size={18} />
         </button>
       </div>
 
       {/* Info */}
-      <div style={{ padding: "8px 12px", fontSize: 11, color: "#888", textAlign: "center" }}>
+      <div className="p-[8px] text-[11px]" style={{ color: "#888", textAlign: "center" }}>
         Call continues in background
       </div>
     </div>
@@ -390,6 +350,16 @@ export default function LeftSidebar(props: LeftSidebarProps) {
                 onFileCreate={(name, content) => props.onFileCreate({ name, content, language: getLangFromExt(name) })}
                 onApplyCode={props.onApplyCode}
                 onPanelChange={props.onPanelChange}
+              />
+            )}
+            {props.activePanel === "chat" && (
+              <ChatPanel
+                roomId={props.roomId}
+                currentUserId={props.currentUserId}
+                currentUserName={props.currentUserName}
+                members={props.members}
+                onNewMessage={props.onNewChatMessage}
+                isDocked={true}
               />
             )}
             {props.activePanel === "notes" && <TeacherNotes roomId={props.roomId} currentUserId={props.currentUserId} currentUserName={props.currentUserName} isTeacher={props.isTeacher} />}
@@ -474,14 +444,7 @@ export default function LeftSidebar(props: LeftSidebarProps) {
             activeFile={props.activeFile}
           />
         )}
-        <ChatPanel
-          roomId={props.roomId}
-          currentUserId={props.currentUserId}
-          currentUserName={props.currentUserName}
-          members={props.members}
-          onNewMessage={props.onNewChatMessage}
-          isDocked={props.activePanel === "chat"}
-        />
+        
         {props.activePanel === "settings" && (
           <SettingsPanel language={props.language} onLanguageChange={props.onLanguageChange} roomName={props.roomName} onRoomNameChange={props.onRoomNameChange} />
         )}

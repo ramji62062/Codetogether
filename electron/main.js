@@ -33,15 +33,96 @@ function getDefaultShell() {
 // ── Start Next.js server ──
 function startServer() {
   return new Promise((resolve, reject) => {
-    const serverPath = path.join(__dirname, "..", "server.js");
+    const appRoot = path.join(__dirname, "..");
+
+    // In packaged app, server.js is inside asar which child_process can't read.
+    // Copy essential files to a temp directory first.
+    let serverCwd = appRoot;
+    if (app.isPackaged) {
+      const tmpDir = path.join(os.tmpdir(), "codetogether-server");
+      try {
+        if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+
+        // Copy server.js
+        const src = path.join(appRoot, "server.js");
+        const dst = path.join(tmpDir, "server.js");
+        if (fs.existsSync(src)) fs.copyFileSync(src, dst);
+
+        // Copy .next/server directory (needed for Next.js)
+        const nextServerSrc = path.join(appRoot, ".next", "server");
+        const nextServerDst = path.join(tmpDir, ".next", "server");
+        if (fs.existsSync(nextServerSrc)) {
+          fs.mkdirSync(nextServerDst, { recursive: true });
+          copyDirRecursive(nextServerSrc, nextServerDst);
+        }
+
+        // Copy .next/static
+        const nextStaticSrc = path.join(appRoot, ".next", "static");
+        const nextStaticDst = path.join(tmpDir, ".next", "static");
+        if (fs.existsSync(nextStaticSrc)) {
+          fs.mkdirSync(nextStaticDst, { recursive: true });
+          copyDirRecursive(nextStaticSrc, nextStaticDst);
+        }
+
+        // Copy .next/required-server-files.json
+        const reqFiles = path.join(appRoot, ".next", "required-server-files.json");
+        if (fs.existsSync(reqFiles)) {
+          fs.mkdirSync(path.join(tmpDir, ".next"), { recursive: true });
+          fs.copyFileSync(reqFiles, path.join(tmpDir, ".next", "required-server-files.json"));
+        }
+
+        // Copy server/ directory (terminal-service, etc.)
+        const serverDirSrc = path.join(appRoot, "server");
+        const serverDirDst = path.join(tmpDir, "server");
+        if (fs.existsSync(serverDirSrc)) {
+          fs.mkdirSync(serverDirDst, { recursive: true });
+          copyDirRecursive(serverDirSrc, serverDirDst);
+        }
+
+        // Copy .env.local
+        const envSrc = path.join(appRoot, ".env.local");
+        const envDst = path.join(tmpDir, ".env.local");
+        if (fs.existsSync(envSrc)) fs.copyFileSync(envSrc, envDst);
+
+        // Copy public/ for static assets
+        const publicSrc = path.join(appRoot, "public");
+        const publicDst = path.join(tmpDir, "public");
+        if (fs.existsSync(publicSrc)) {
+          fs.mkdirSync(publicDst, { recursive: true });
+          copyDirRecursive(publicSrc, publicDst);
+        }
+
+        // Symlink node_modules (too large to copy — use junction on Windows)
+        const nmSrc = path.join(appRoot, "node_modules");
+        const nmDst = path.join(tmpDir, "node_modules");
+        if (!fs.existsSync(nmDst) && fs.existsSync(nmSrc)) {
+          try {
+            fs.symlinkSync(nmSrc, nmDst, "junction");
+          } catch {
+            // Fallback: just set cwd to appRoot and hope for the best
+            serverCwd = appRoot;
+            console.log("[electron] Could not symlink node_modules, using appRoot directly");
+          }
+        }
+
+        serverCwd = tmpDir;
+        console.log("[electron] Server files extracted to:", tmpDir);
+      } catch (err) {
+        console.error("[electron] Failed to extract server files:", err.message);
+        serverCwd = appRoot;
+      }
+    }
+
+    const serverPath = path.join(serverCwd, "server.js");
     if (!fs.existsSync(serverPath)) {
-      console.log("[electron] server.js not found, using remote deployment");
+      console.log("[electron] server.js not found at", serverPath, "- using remote deployment");
       resolve(null);
       return;
     }
 
+    console.log("[electron] Starting server from:", serverCwd);
     serverProcess = cpSpawn("node", [serverPath], {
-      cwd: path.join(__dirname, ".."),
+      cwd: serverCwd,
       env: {
         ...process.env,
         PORT: String(serverPort),
@@ -73,12 +154,28 @@ function startServer() {
     });
 
     // Timeout fallback
-    setTimeout(() => resolve(serverPort), 8000);
+    setTimeout(() => resolve(serverPort), 12000);
   });
+}
+
+// ── Recursive directory copy helper ──
+function copyDirRecursive(src, dst) {
+  const entries = fs.readdirSync(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const dstPath = path.join(dst, entry.name);
+    if (entry.isDirectory()) {
+      fs.mkdirSync(dstPath, { recursive: true });
+      copyDirRecursive(srcPath, dstPath);
+    } else {
+      try { fs.copyFileSync(srcPath, dstPath); } catch {}
+    }
+  }
 }
 
 // ── Create main window ──
 const REMOTE_URL = "https://codabase.onrender.com";
+const LOCAL_IDE_PATH = "/local-ide";
 
 function createWindow(port) {
   mainWindow = new BrowserWindow({
@@ -98,8 +195,8 @@ function createWindow(port) {
     trafficLightPosition: { x: 12, y: 12 },
   });
 
-  // If local server started, use it. Otherwise load remote deployment.
-  const url = port ? `http://localhost:${port}` : REMOTE_URL;
+  // Load the local IDE page (full local experience, not browser wrapper)
+  const url = port ? `http://localhost:${port}${LOCAL_IDE_PATH}` : REMOTE_URL;
   console.log("[electron] Loading:", url);
 
   mainWindow.loadURL(url).catch((err) => {

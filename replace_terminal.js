@@ -1,4 +1,6 @@
+const fs = require('fs');
 
+const code = `
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -24,7 +26,6 @@ type TerminalPanelProps = {
   files?: FileItem[];
   onFilesSync?: (files: FileItem[]) => void;
   onOutputLog?: (text: string) => void;
-  onServerReady?: (url: string, port: number) => void;
   terminalAction?: any;
 };
 
@@ -44,10 +45,10 @@ type TabRuntime = {
 
 export default function TerminalPanel({
   onClose, roomId, codeRef, language, activeFileName,
-  triggerRun = 0, files = [], onFilesSync, onOutputLog, onServerReady
+  triggerRun = 0, files = [], onFilesSync, onOutputLog
 }: TerminalPanelProps) {
   const [height, setHeight] = useState(280);
-  const [tabs, setTabs] = useState<TerminalTab[]>([{ id: "tab-1", title: "1: terminal", terminalId: `term_${roomId}_1` }]);
+  const [tabs, setTabs] = useState<TerminalTab[]>([{ id: "tab-1", title: "1: terminal", terminalId: \`term_\${roomId}_1\` }]);
   const [activeTabId, setActiveTabId] = useState("tab-1");
   const [isBooting, setIsBooting] = useState(true);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -66,10 +67,9 @@ export default function TerminalPanel({
         
         webcontainerRef.current.on('server-ready', (port, url) => {
           setPreviewUrl(url);
-          if (onServerReady) onServerReady(url, port);
           setTabs(prev => {
             if (prev.find(t => t.type === "preview")) return prev;
-            return [...prev, { id: "preview-tab", title: `Port ${port}`, terminalId: "preview", type: "preview" }];
+            return [...prev, { id: "preview-tab", title: \`Port \${port}\`, terminalId: "preview", type: "preview" }];
           });
           setActiveTabId("preview-tab");
         });
@@ -113,13 +113,13 @@ export default function TerminalPanel({
         for (const entry of entries) {
           if (entry.name === "node_modules" || entry.name === ".git") continue;
           
-          const fullPath = basePath ? `${basePath}/${entry.name}` : entry.name;
+          const fullPath = basePath ? \`\${basePath}/\${entry.name}\` : entry.name;
           if (entry.isDirectory()) {
             items.push({ name: entry.name, path: fullPath, isFolder: true, content: "", language: "" });
-            const children = await readDirRecursively(`${dir}/${entry.name}`, fullPath);
+            const children = await readDirRecursively(\`\${dir}/\${entry.name}\`, fullPath);
             items = items.concat(children);
           } else {
-            const content = await webcontainerRef.current!.fs.readFile(`${dir}/${entry.name}`, 'utf8');
+            const content = await webcontainerRef.current!.fs.readFile(\`\${dir}/\${entry.name}\`, 'utf8');
             const ext = entry.name.split('.').pop() || '';
             let lang = "plaintext";
             if (ext === "js" || ext === "jsx") lang = "javascript";
@@ -160,14 +160,14 @@ export default function TerminalPanel({
     const ro = new ResizeObserver(() => fit.fit());
     ro.observe(container);
 
-    term.writeln("[36mWaiting for WebContainer to boot...[0m");
+    term.writeln("\x1b[36mWaiting for WebContainer to boot...\x1b[0m");
 
     if (!webcontainerRef.current) {
         if (!webcontainerPromise) webcontainerPromise = WebContainer.boot();
         webcontainerRef.current = await webcontainerPromise;
     }
     
-    term.writeln("[32mWebContainer connected![0m");
+    term.writeln("\x1b[32mWebContainer connected!\x1b[0m");
 
     const process = await webcontainerRef.current.spawn("jsh", {
       terminal: { cols: term.cols, rows: term.rows }
@@ -211,21 +211,21 @@ export default function TerminalPanel({
       if (!rt || !rt.inputWriter || !activeFileName) return;
       
       let cmd = "";
-      if (language === "javascript" || activeFileName.endsWith(".js")) cmd = `node "${activeFileName}"`;
-      else if (language === "python" || activeFileName.endsWith(".py")) cmd = `python3 "${activeFileName}"`;
-      else if (language === "cpp" || activeFileName.endsWith(".cpp")) cmd = `g++ "${activeFileName}" && ./a.out`;
-      else if (language === "java" || activeFileName.endsWith(".java")) cmd = `javac "${activeFileName}" && java "${activeFileName.replace(".java", "")}"`;
-      else cmd = `./"${activeFileName}"`;
+      if (language === "javascript" || activeFileName.endsWith(".js")) cmd = \`node "\${activeFileName}"\`;
+      else if (language === "python" || activeFileName.endsWith(".py")) cmd = \`python3 "\${activeFileName}"\`;
+      else if (language === "cpp" || activeFileName.endsWith(".cpp")) cmd = \`g++ "\${activeFileName}" && ./a.out\`;
+      else if (language === "java" || activeFileName.endsWith(".java")) cmd = \`javac "\${activeFileName}" && java "\${activeFileName.replace(".java", "")}"\`;
+      else cmd = \`./"\${activeFileName}"\`;
 
-      rt.term.writeln(`\r\n\x1b[32m▶ Running ${activeFileName}...\x1b[0m\r\n`);
-      rt.inputWriter.write(cmd + "\n");
+      rt.term.writeln(\`\\r\\n\\x1b[32m▶ Running \${activeFileName}...\\x1b[0m\\r\\n\`);
+      rt.inputWriter.write(cmd + "\\n");
     };
     run();
   }, [triggerRun]);
 
   const addTab = () => {
-    const id = `tab-${Date.now()}`;
-    setTabs([...tabs, { id, title: `${tabs.length + 1}: terminal`, terminalId: `term_${roomId}_${Date.now()}` }]);
+    const id = \`tab-\${Date.now()}\`;
+    setTabs([...tabs, { id, title: \`\${tabs.length + 1}: terminal\`, terminalId: \`term_\${roomId}_\${Date.now()}\` }]);
     setActiveTabId(id);
   };
 
@@ -269,7 +269,7 @@ export default function TerminalPanel({
             <div 
               key={t.id} 
               onClick={() => setActiveTabId(t.id)}
-              className={`flex items-center gap-2 px-3 py-1 text-xs cursor-pointer rounded-t ${activeTabId === t.id ? "bg-[#111] text-white border-t border-t-[#007acc]" : "text-gray-400 hover:bg-[#2a2a2a]"}`}
+              className={\`flex items-center gap-2 px-3 py-1 text-xs cursor-pointer rounded-t \${activeTabId === t.id ? "bg-[#111] text-white border-t border-t-[#007acc]" : "text-gray-400 hover:bg-[#2a2a2a]"}\`}
             >
               {t.type === "preview" ? <Globe size={12} /> : <TerminalIcon size={12} />}
               {t.title}
@@ -285,7 +285,7 @@ export default function TerminalPanel({
             onClick={syncFromWebContainer}
             disabled={isSyncing}
             title="Sync files from Terminal to Workspace"
-            className={`flex items-center gap-1 px-2 py-1 text-xs ${isSyncing ? 'text-gray-500' : 'text-blue-400 hover:bg-blue-900/30'} border border-transparent hover:border-blue-800 rounded`}
+            className={\`flex items-center gap-1 px-2 py-1 text-xs \${isSyncing ? 'text-gray-500' : 'text-blue-400 hover:bg-blue-900/30'} border border-transparent hover:border-blue-800 rounded\`}
           >
             <RefreshCw size={12} className={isSyncing ? "animate-spin" : ""} /> Sync Files
           </button>
@@ -301,7 +301,7 @@ export default function TerminalPanel({
         {tabs.map(t => {
           if (t.type === "preview") {
             return (
-              <div key={t.id} className={`absolute inset-0 bg-white ${activeTabId === t.id ? "block" : "hidden"}`}>
+              <div key={t.id} className={\`absolute inset-0 bg-white \${activeTabId === t.id ? "block" : "hidden"}\`}>
                 <iframe src={previewUrl || ""} className="w-full h-full border-0 bg-white" />
               </div>
             );
@@ -310,7 +310,7 @@ export default function TerminalPanel({
             <div 
               key={t.id} 
               ref={(el) => { if (el) containerRefs.current.set(t.id, el); }}
-              className={`absolute inset-0 p-2 ${activeTabId === t.id ? "block" : "hidden"}`} 
+              className={\`absolute inset-0 p-2 \${activeTabId === t.id ? "block" : "hidden"}\`} 
             />
           );
         })}
@@ -318,3 +318,6 @@ export default function TerminalPanel({
     </div>
   );
 }
+`;
+
+fs.writeFileSync('src/components/TerminalPanel.tsx', code);

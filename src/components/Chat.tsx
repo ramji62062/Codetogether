@@ -116,7 +116,7 @@ export default function ChatPanel({
   // Floating Window state
   const [floatingPos, setFloatingPos] = useState<{ x: number; y: number } | null>(null);
   const [floatingSize, setFloatingSize] = useState<{ w: number; h: number }>({ w: 380, h: 480 });
-  const [isChatHidden, setIsChatHidden] = useState(false);
+  const [isChatHidden, setIsChatHidden] = useState(true);
   const [isFloatingMinimized, setIsFloatingMinimized] = useState(false);
   const isDraggingRef = useRef(false);
   const dragStartRef = useRef<{ mouseX: number; mouseY: number; posX: number; posY: number }>({ mouseX: 0, mouseY: 0, posX: 0, posY: 0 });

@@ -10,8 +10,16 @@ export default function RoomError({
   reset: () => void;
 }) {
   useEffect(() => {
+    if (error?.message?.includes("chrome:") || error?.message?.includes("window message")) {
+      reset();
+      return;
+    }
     console.error("Room error:", error);
-  }, [error]);
+  }, [error, reset]);
+
+  if (error?.message?.includes("chrome:") || error?.message?.includes("window message")) {
+    return null;
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#1e1e1e] font-inter text-white">

@@ -7,7 +7,7 @@ import { io, type Socket } from "socket.io-client";
 import {
   Mic, MicOff, Video, VideoOff, PhoneOff, PhoneCall, AlertCircle, ChevronDown,
   ChevronUp, Maximize2, Minimize2, ScreenShare, Search, MoreHorizontal, Crown,
-  VolumeX, Trash2, UserPlus, Users, Wifi, WifiOff, GripHorizontal, Move, Minus
+  VolumeX, Trash2, UserPlus, Users, Wifi, WifiOff, GripHorizontal, Move, Minus, Pin
 } from "lucide-react";
 
 type PresenceMember = { userId: string; name: string; avatar?: string | null };
@@ -398,7 +398,7 @@ export default function ParticipantsCallPanel({
     Object.values(peerConnectionsRef.current).forEach((pc) => {
       try {
         const senders = pc.getSenders();
-        const sender = senders.find((s) => s.track?.kind === kind || (!s.track && kind === "video"));
+        const sender = senders.find((s) => s.track === cameraTrackRef.current || (!s.track && kind === "video"));
         if (sender) {
           sender.replaceTrack(track).catch(() => undefined);
         } else {
@@ -939,8 +939,16 @@ export default function ParticipantsCallPanel({
     }
     screenTrackRef.current = null;
     // When stopping screen share, restore camera track (may be null — that's OK)
-    const cameraTrack = cameraTrackRef.current?.readyState === "live" ? cameraTrackRef.current : null;
-    replaceTrackForAllPeers("video", cameraTrack);
+    // Instead of replacing, we REMOVE the screen track from the PC
+    const trackToRemove = screenTrackRef.current;
+    if (trackToRemove) {
+      Object.values(peerConnectionsRef.current).forEach(pc => {
+        try { 
+          const sender = pc.getSenders().find(s => s.track === trackToRemove);
+          if (sender) pc.removeTrack(sender); 
+        } catch {}
+      });
+    }
     localStateRef.current.screenOn = false;
     onScreenToggle(false);
     onFullscreenChange(false);
@@ -966,7 +974,10 @@ export default function ParticipantsCallPanel({
       if (localStreamRef.current && !localStreamRef.current.getTracks().includes(screenTrack)) {
         localStreamRef.current.addTrack(screenTrack);
       }
-      replaceTrackForAllPeers("video", screenTrack);
+      // Instead of replacing, we ADD it to send both
+      Object.values(peerConnectionsRef.current).forEach(pc => {
+        try { pc.addTrack(screenTrack, localStreamRef.current!); } catch {}
+      });
       localStateRef.current.screenOn = true;
       onScreenToggle(true);
       onFullscreenChange(true);
@@ -1114,32 +1125,28 @@ export default function ParticipantsCallPanel({
       background: isDocked ? "#151515" : "transparent",
       pointerEvents: isDocked ? "auto" : "none",
     }}>
-      <div style={{ padding: "10px 14px", borderBottom: "1px solid #222", background: "#1c1c1c" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#888", letterSpacing: "0.08em" }}>
+      <div className="p-[10px]" style={{ borderBottom: "1px solid #222", background: "#1c1c1c" }}>
+        <div className="flex items-center justify-between">
+          <div className="text-[11px] font-bold" style={{ textTransform: "uppercase", color: "#888", letterSpacing: "0.08em" }}>
             Participants &amp; Call
           </div>
           {totalInCall > 0 && (
-            <div style={{
-              display: "flex", alignItems: "center", gap: 4,
-              background: "rgba(34,197,94,0.12)", color: "#22c55e",
-              padding: "2px 8px", borderRadius: 10, fontSize: 10, fontWeight: 600,
-            }}>
+            <div className="flex items-center gap-[4px] p-[2px] rounded-[10px] text-[10px] font-semibold" style={{ background: "rgba(34, 197, 94, 0.12)", color: "#22c55e" }}>
               <Users size={10} /> {totalInCall}
             </div>
           )}
         </div>
       </div>
 
-      <div style={{ padding: "8px 10px", borderBottom: "1px solid #222", background: "#181818" }}>
-        <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-          <Search size={13} color="#666" style={{ position: "absolute", left: 8, zIndex: 1 }} />
+      <div className="p-[8px]" style={{ borderBottom: "1px solid #222", background: "#181818" }}>
+        <div className="relative flex items-center">
+          <Search size={13} color="#666" className="absolute" style={{ left: 8, zIndex: 1 }} />
           <input
             type="text"
             placeholder="Search participants..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ width: "100%", background: "#222", border: "1px solid #333", borderRadius: 6, padding: "6px 8px 6px 28px", color: "#fff", fontSize: 12, outline: "none", transition: "border-color 0.15s" }}
+            className="w-full rounded-[6px] p-[6px] text-[12px]" style={{ background: "#222", border: "1px solid #333", color: "#fff", outline: "none", transition: "border-color 0.15s" }}
             onFocus={(e) => { e.currentTarget.style.borderColor = "#555"; }}
             onBlur={(e) => { e.currentTarget.style.borderColor = "#333"; }}
           />
@@ -1151,16 +1158,16 @@ export default function ParticipantsCallPanel({
         <div>
           <SectionHeader title="Video Call" badge={joined ? `${totalInCall} in call` : "Ready"} expanded={callExpanded} onClick={() => setCallExpanded((p) => !p)} />
           {callExpanded && (
-            <div style={{ padding: "8px 8px 6px" }}>
+            <div className="p-[8px]">
               {/* Idle state */}
               {connState === "idle" && (
-                <div style={{ textAlign: "center", padding: "18px 0", animation: "pcp-fadeIn 0.3s" }}>
-                  <div style={{ width: 48, height: 48, borderRadius: "50%", background: "linear-gradient(135deg, #22c55e, #15803d)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+                <div className="p-[18px]" style={{ textAlign: "center", animation: "pcp-fadeIn 0.3s" }}>
+                  <div className="rounded-[50px] flex items-center justify-center" style={{ width: 48, height: 48, background: "linear-gradient(135deg, #22c55e, #15803d)", margin: "0 auto 12px" }}>
                     <PhoneCall size={22} color="#fff" />
                   </div>
-                  <div style={{ fontSize: 13, color: "#ddd", fontWeight: 600, marginBottom: 4 }}>Start a Meeting</div>
-                  <div style={{ fontSize: 11, color: "#777", marginBottom: 14, lineHeight: 1.4 }}>Free unlimited browser meetings with screen share</div>
-                  <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                  <div className="text-[13px] font-semibold" style={{ color: "#ddd", marginBottom: 4 }}>Start a Meeting</div>
+                  <div className="text-[11px]" style={{ color: "#777", marginBottom: 14, lineHeight: 1.4 }}>Free unlimited browser meetings with screen share</div>
+                  <div className="flex gap-[8px] justify-center">
                     <button onClick={startMeeting} style={primaryBtn("#22c55e")}>
                       <PhoneCall size={13} /> Join Call
                     </button>
@@ -1173,8 +1180,8 @@ export default function ParticipantsCallPanel({
 
               {/* Joining state with animation */}
               {connState === "joining" && (
-                <div style={{ textAlign: "center", padding: "24px 0", animation: "pcp-fadeIn 0.3s" }}>
-                  <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 12 }}>
+                <div className="p-[24px]" style={{ textAlign: "center", animation: "pcp-fadeIn 0.3s" }}>
+                  <div className="flex gap-[6px] justify-center" style={{ marginBottom: 12 }}>
                     {[0, 1, 2].map((i) => (
                       <div key={i} style={{
                         width: 8, height: 8, borderRadius: "50%", background: "#22c55e",
@@ -1182,21 +1189,21 @@ export default function ParticipantsCallPanel({
                       }} />
                     ))}
                   </div>
-                  <div style={{ fontSize: 12, color: "#aaa", fontWeight: 500 }}>Joining meeting...</div>
-                  <div style={{ fontSize: 10, color: "#666", marginTop: 4 }}>Setting up audio & video</div>
+                  <div className="text-[12px] font-medium" style={{ color: "#aaa" }}>Joining meeting...</div>
+                  <div className="text-[10px]" style={{ color: "#666", marginTop: 4 }}>Setting up audio & video</div>
                 </div>
               )}
 
               {/* Error state */}
               {connState === "error" && (
-                <div style={{ textAlign: "center", padding: "14px 8px", animation: "pcp-fadeIn 0.3s" }}>
-                  <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(248,113,113,0.12)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 8px" }}>
+                <div className="p-[14px]" style={{ textAlign: "center", animation: "pcp-fadeIn 0.3s" }}>
+                  <div className="rounded-[50px] flex items-center justify-center" style={{ width: 40, height: 40, background: "rgba(248, 113, 113, 0.12)", margin: "0 auto 8px" }}>
                     <AlertCircle size={20} color="#f87171" />
                   </div>
-                  <div style={{ fontSize: 12, color: "#f87171", marginTop: 4, lineHeight: 1.5, maxWidth: 240, margin: "4px auto 0", fontWeight: 500 }}>
+                  <div className="text-[12px] font-medium" style={{ color: "#f87171", marginTop: 4, lineHeight: 1.5, maxWidth: 240, margin: "4px auto 0" }}>
                     {error || "Call failed"}
                   </div>
-                  <button onClick={startMeeting} style={{ marginTop: 12, padding: "6px 18px", background: "#333", color: "#ccc", border: "1px solid #444", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 500, transition: "background 0.15s" }}>
+                  <button onClick={startMeeting} className="p-[6px] rounded-[6px] cursor-pointer text-[11px] font-medium" style={{ marginTop: 12, background: "#333", color: "#ccc", border: "1px solid #444", transition: "background 0.15s" }}>
                     Retry Call
                   </button>
                 </div>
@@ -1229,7 +1236,7 @@ export default function ParticipantsCallPanel({
                     onMouseDown={handleDragMouseDown}
                   >
                     <GripHorizontal size={14} color="#94a3b8" style={{ cursor: "grab" }} />
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div className="flex items-center gap-[6px]">
                       <div style={{
                         width: 26, height: 26, borderRadius: "50%",
                         background: "linear-gradient(135deg,#ffffff,#cccccc)",
@@ -1239,13 +1246,13 @@ export default function ParticipantsCallPanel({
                       }}>
                         {currentUserName.slice(0, 2).toUpperCase()}
                       </div>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: "#fff" }}>Call</span>
-                      <span style={{ fontSize: 10, background: "#ffffff33", color: "#ffffff", padding: "1px 6px", borderRadius: 10, display: "flex", alignItems: "center", gap: 3 }}>
+                      <span className="text-[12px] font-bold" style={{ color: "#fff" }}>Call</span>
+                      <span className="text-[10px] p-[1px] rounded-[10px] flex items-center gap-[3px]" style={{ background: "#ffffff33", color: "#ffffff" }}>
                         <Users size={10} /> {totalInCall}
                       </span>
                     </div>
 
-                    <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: 4 }}>
+                    <div className="flex items-center gap-[4px]" style={{ marginLeft: 4 }}>
                       <button onClick={handleMicBtn} title={micOn ? "Mute" : "Unmute"} style={{ background: micOn ? "rgba(34, 197, 94, 0.15)" : "rgba(239, 68, 68, 0.15)", border: micOn ? "1px solid #22c55e" : "1px solid #ef4444", borderRadius: 12, padding: "4px 8px", color: micOn ? "#22c55e" : "#ef4444", cursor: "pointer", display: "flex", alignItems: "center" }}>
                         {micOn ? <Mic size={12} /> : <MicOff size={12} />}
                       </button>
@@ -1255,10 +1262,10 @@ export default function ParticipantsCallPanel({
                       <button onClick={handleScreenBtn} title={screenOn ? "Stop sharing" : "Share Screen"} style={{ background: screenOn ? "rgba(138, 43, 226, 0.15)" : "rgba(0, 0, 0, 0.6)", border: screenOn ? "1px solid #c084fc" : "1px solid #333", borderRadius: 12, padding: "4px 8px", color: screenOn ? "#c084fc" : "#000000", cursor: "pointer", display: "flex", alignItems: "center" }}>
                         <ScreenShare size={12} />
                       </button>
-                      <button onClick={() => setIsFloatingMinimized(false)} title="Maximize call window" style={{ background: "rgba(124, 58, 237, 0.2)", border: "1px solid #ffffff", borderRadius: 12, padding: "4px 8px", color: "#ffffff", cursor: "pointer", display: "flex", alignItems: "center" }}>
+                      <button onClick={() => setIsFloatingMinimized(false)} title="Maximize call window" className="rounded-[12px] p-[4px] cursor-pointer flex items-center" style={{ background: "rgba(124, 58, 237, 0.2)", border: "1px solid #ffffff", color: "#ffffff" }}>
                         <Maximize2 size={12} />
                       </button>
-                      <button onClick={leaveCall} title="Leave call" style={{ background: "#ea4335", border: "none", borderRadius: 12, padding: "4px 8px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center" }}>
+                      <button onClick={leaveCall} title="Leave call" className="border-none rounded-[12px] p-[4px] cursor-pointer flex items-center" style={{ background: "#ea4335", color: "#fff" }}>
                         <PhoneOff size={12} />
                       </button>
                     </div>
@@ -1300,24 +1307,24 @@ export default function ParticipantsCallPanel({
                         flexShrink: 0,
                       }}
                     >
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div className="flex items-center gap-[8px]">
                         {!isFullscreen && <GripHorizontal size={14} color="#94a3b8" />}
-                        <span style={{ fontSize: 12, fontWeight: 700, color: "#f8fafc", letterSpacing: "0.01em" }}>
+                        <span className="text-[12px] font-bold" style={{ color: "#f8fafc", letterSpacing: "0.01em" }}>
                           CodeTogether Call ({totalInCall} participant{totalInCall !== 1 ? "s" : ""})
                         </span>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div className="flex items-center gap-[6px]">
                         <button
                           onClick={() => setIsFloatingMinimized(true)}
                           title="Minimize to floating pill"
-                          style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", display: "flex", padding: 4, borderRadius: 4 }}
+                          className="border-none cursor-pointer flex p-[4px] rounded-[4px]" style={{ background: "none", color: "#94a3b8" }}
                         >
                           <Minus size={14} />
                         </button>
                         <button
                           onClick={() => onFullscreenChange(!isFullscreen)}
                           title={isFullscreen ? "Exit fullscreen" : "Fullscreen call view"}
-                          style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", display: "flex", padding: 4, borderRadius: 4 }}
+                          className="border-none cursor-pointer flex p-[4px] rounded-[4px]" style={{ background: "none", color: "#94a3b8" }}
                         >
                           {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
                         </button>
@@ -1325,9 +1332,9 @@ export default function ParticipantsCallPanel({
                     </div>
 
                     {/* Video Tiles Grid */}
-                    <div style={{ flex: 1, position: "relative", minHeight: 0, overflow: "hidden" }}>
+                    <div className="relative overflow-hidden" style={{ flex: 1, minHeight: 0 }}>
                       {hasPinned ? (
-                        <div style={{ height: "100%", display: "flex", flexDirection: "column", gap: 4, padding: 4, boxSizing: "border-box" }}>
+                        <div className="h-full flex flex-col gap-[4px] p-[4px]" style={{ boxSizing: "border-box" }}>
                           <div style={{ flex: 1, minHeight: 0 }}>
                             <VideoTile
                               peer={tiles[0]}
@@ -1352,7 +1359,7 @@ export default function ParticipantsCallPanel({
                           )}
                         </div>
                       ) : (
-                        <div style={{ height: "100%", display: "grid", ...gridStyle, gap: 4, padding: 4, boxSizing: "border-box" }}>
+                        <div className="h-full gap-[4px] p-[4px]" style={{ display: "grid", ...gridStyle, boxSizing: "border-box" }}>
                           {tiles.map((tile) => (
                             <VideoTile
                               key={tile.socketId}
@@ -1362,7 +1369,7 @@ export default function ParticipantsCallPanel({
                               isFullscreen={isFullscreen}
                             />
                           ))}
-                          {tiles.length === 0 && <div style={{ color: "#555", fontSize: 12, display: "grid", placeItems: "center" }}>Waiting for participants...</div>}
+                          {tiles.length === 0 && <div className="text-[12px]" style={{ color: "#555", display: "grid", placeItems: "center" }}>Waiting for participants...</div>}
                         </div>
                       )}
 
@@ -1452,12 +1459,7 @@ export default function ParticipantsCallPanel({
                     {!isFullscreen && (
                       <div
                         onMouseDown={handleResizeMouseDown}
-                        style={{
-                          position: "absolute", right: 3, bottom: 3, zIndex: 100002,
-                          width: 14, height: 14, cursor: "nwse-resize",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: 10, color: "rgba(255,255,255,0.5)", userSelect: "none"
-                        }}
+                        className="absolute flex items-center justify-center text-[10px]" style={{ right: 3, bottom: 3, zIndex: 100002, width: 14, height: 14, cursor: "nwse-resize", color: "rgba(255, 255, 255, 0.5)", userSelect: "none" }}
                         title="Drag to resize call window"
                       >
                         ◢
@@ -1475,7 +1477,7 @@ export default function ParticipantsCallPanel({
         <div>
           <SectionHeader title={`In Meeting (${filteredMembersInCall.length})`} expanded={participantsExpanded} onClick={() => setParticipantsExpanded((p) => !p)} />
           {participantsExpanded && (
-            <div style={{ padding: "6px 8px", display: "flex", flexDirection: "column", gap: 4 }}>
+            <div className="p-[6px] flex flex-col gap-[4px]">
               {filteredMembersInCall.map((member) => {
                 const isSelf = member.userId === currentUserId;
                 const peer = activeRemoteCallUsers.find((p) => p.userId === member.userId || p.name.toLowerCase() === member.name.toLowerCase());
@@ -1500,7 +1502,7 @@ export default function ParticipantsCallPanel({
                 );
               })}
               {filteredMembersInCall.length === 0 && (
-                <div style={{ fontSize: 11, color: "#555", textAlign: "center", padding: "12px 0" }}>
+                <div className="text-[11px] p-[12px]" style={{ color: "#555", textAlign: "center" }}>
                   {searchQuery ? "No matching participants" : "No participants in call yet"}
                 </div>
               )}
@@ -1511,12 +1513,12 @@ export default function ParticipantsCallPanel({
         {/* ── Not in Call Section ── */}
         {filteredMembersNotInCall.length > 0 && (
           <div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 12px", background: "#1c1c1c", borderBottom: "1px solid #222", userSelect: "none" }}>
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#666", letterSpacing: "0.05em" }}>
+            <div className="flex items-center justify-between p-[5px]" style={{ background: "#1c1c1c", borderBottom: "1px solid #222", userSelect: "none" }}>
+              <span className="text-[11px] font-bold" style={{ textTransform: "uppercase", color: "#666", letterSpacing: "0.05em" }}>
                 Not in Call ({filteredMembersNotInCall.length})
               </span>
             </div>
-            <div style={{ padding: "6px 8px", display: "flex", flexDirection: "column", gap: 4 }}>
+            <div className="p-[6px] flex flex-col gap-[4px]">
               {filteredMembersNotInCall.map((member) => (
                 <MemberRow key={member.userId} name={member.name} isSelf={member.userId === currentUserId} inCall={false} isHostParticipant={member.userId === hostUserId} />
               ))}
@@ -1526,12 +1528,12 @@ export default function ParticipantsCallPanel({
       </div>
 
       {/* ── Bottom Action Bar ── */}
-      <div style={{ padding: "10px 10px", borderTop: "1px solid #2a2a2a", background: "#1a1a1a", display: "flex", gap: 6 }}>
-        <button onClick={handleInvite} style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 12px", background: "#2a2a2a", color: "#ddd", border: "1px solid #333", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, transition: "background 0.15s" }}>
+      <div className="p-[10px] flex gap-[6px]" style={{ borderTop: "1px solid #2a2a2a", background: "#1a1a1a" }}>
+        <button onClick={handleInvite} className="items-center justify-center gap-[6px] p-[8px] rounded-[8px] cursor-pointer text-[11px] font-semibold" style={{ flex: 1, display: "inline-flex", background: "#2a2a2a", color: "#ddd", border: "1px solid #333", transition: "background 0.15s" }}>
           <UserPlus size={13} /> Invite
         </button>
         {isHost && joined && (
-          <button onClick={handleMuteAll} style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 12px", background: "rgba(220,38,38,0.15)", color: "#f87171", border: "1px solid rgba(220,38,38,0.3)", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, transition: "background 0.15s" }}>
+          <button onClick={handleMuteAll} className="items-center justify-center gap-[6px] p-[8px] rounded-[8px] cursor-pointer text-[11px] font-semibold" style={{ flex: 1, display: "inline-flex", background: "rgba(220, 38, 38, 0.15)", color: "#f87171", border: "1px solid rgba(220, 38, 38, 0.3)", transition: "background 0.15s" }}>
             <VolumeX size={13} /> Mute All
           </button>
         )}
@@ -1541,6 +1543,7 @@ export default function ParticipantsCallPanel({
 }
 
 // ── Video Tile Component ──
+
 function VideoTile({ peer, muted, isPinned, onPin, isFullscreen }: {
   peer: ParticipantCallState;
   muted?: boolean;
@@ -1549,89 +1552,114 @@ function VideoTile({ peer, muted, isPinned, onPin, isFullscreen }: {
   isFullscreen?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const pipVideoRef = useRef<HTMLVideoElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [trackVersion, setTrackVersion] = useState(0);
+  const [isCameraMain, setIsCameraMain] = useState(false); // SWAP STATE
+
   const hasVideo = Boolean(peer.stream && (peer.cameraOn || peer.screenOn));
+
+  // Determine tracks
+  const screenTrack = peer.stream?.getVideoTracks().find(t => {
+    try { return t.getSettings().displaySurface !== undefined; } catch { return false; }
+  }) || (peer.screenOn ? peer.stream?.getVideoTracks()[0] : null);
+  
+  const cameraTrack = peer.stream?.getVideoTracks().find(t => t !== screenTrack) 
+    || (peer.cameraOn && !peer.screenOn ? peer.stream?.getVideoTracks()[0] : null);
+
+  const mainTrack = isCameraMain && cameraTrack ? cameraTrack : (screenTrack || cameraTrack);
+  const pipTrack = isCameraMain && cameraTrack ? screenTrack : (screenTrack ? cameraTrack : null);
 
   const setVideoRef = useCallback((el: HTMLVideoElement | null) => {
     videoRef.current = el;
-    if (el && peer.stream) {
-      el.srcObject = peer.stream;
+    if (el && mainTrack) {
+      el.srcObject = new MediaStream([mainTrack]);
       el.play().catch(() => {});
     }
-  }, [peer.stream]);
+  }, [mainTrack]);
 
-  // Update video srcObject when stream or tracks change
+  const setPipVideoRef = useCallback((el: HTMLVideoElement | null) => {
+    pipVideoRef.current = el;
+    if (el && pipTrack) {
+      el.srcObject = new MediaStream([pipTrack]);
+      el.play().catch(() => {});
+    }
+  }, [pipTrack]);
+
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !peer.stream || !hasVideo) return;
-    video.srcObject = peer.stream;
-    video.play().catch(() => {});
+    if (videoRef.current && mainTrack) {
+      videoRef.current.srcObject = new MediaStream([mainTrack]);
+      videoRef.current.play().catch(() => {});
+    }
+    if (pipVideoRef.current && pipTrack) {
+      pipVideoRef.current.srcObject = new MediaStream([pipTrack]);
+      pipVideoRef.current.play().catch(() => {});
+    }
+  }, [mainTrack, pipTrack, trackVersion]);
 
-    // Listen for track changes on the stream
-    const handleTrackChange = () => {
-      setTrackVersion((v) => v + 1);
-      if (videoRef.current && peer.stream) {
-        videoRef.current.srcObject = peer.stream;
-        videoRef.current.play().catch(() => {});
-      }
-    };
-    peer.stream.addEventListener("addtrack", handleTrackChange);
-    peer.stream.addEventListener("removetrack", handleTrackChange);
-
+  useEffect(() => {
+    const handleTrackChange = () => setTrackVersion(v => v + 1);
+    peer.stream?.addEventListener("addtrack", handleTrackChange);
+    peer.stream?.addEventListener("removetrack", handleTrackChange);
     return () => {
       peer.stream?.removeEventListener("addtrack", handleTrackChange);
       peer.stream?.removeEventListener("removetrack", handleTrackChange);
     };
   }, [peer.stream, trackVersion, hasVideo, peer.cameraOn, peer.screenOn]);
 
-  // Always play remote peer audio via a dedicated audio element to guarantee sound even when video is off
   useEffect(() => {
-    if (muted) return;
+    if (muted || !peer.stream) return;
     const audio = audioRef.current;
-    if (!audio || !peer.stream) return;
-    audio.srcObject = peer.stream;
-    audio.play().catch(() => {});
-  }, [peer.stream, muted]);
+    if (!audio) return;
+    const audioTracks = peer.stream.getAudioTracks();
+    if (audioTracks.length > 0) {
+      audio.srcObject = new MediaStream(audioTracks);
+      audio.play().catch(() => {});
+    }
+  }, [peer.stream, muted, trackVersion]);
 
   const initials = peer.name.replace(/\s*\(Me\)$/, "").slice(0, 2).toUpperCase();
 
   return (
     <div
       className="pcp-video-tile"
-      onClick={onPin}
       style={{
         position: "relative", minHeight: 0, overflow: "hidden", borderRadius: 8,
-        background: "#1a1a1a", cursor: "pointer", flex: isPinned ? undefined : "1 1 0%",
+        background: "#1a1a1a", flex: isPinned ? undefined : "1 1 0%",
         height: "100%", width: "100%",
         border: peer.isSpeaking ? "2px solid #22c55e" : isPinned ? "2px solid #4285f4" : "1px solid #2a2a2a",
         animation: peer.isSpeaking ? "pcp-ring 1.5s infinite" : undefined,
       }}
     >
-      {/* Hidden audio element for remote stream to guarantee audio plays even when video is off */}
-      {!muted && peer.stream && (
-        <audio ref={audioRef} autoPlay playsInline style={{ display: "none" }} />
-      )}
+      <audio ref={audioRef} autoPlay playsInline style={{ display: "none" }} />
 
       {hasVideo ? (
-        <video
-          ref={setVideoRef}
-          autoPlay
-          playsInline
-          muted={true} // Video element is always muted; audio is played via the dedicated <audio> element
-          style={{ width: "100%", height: "100%", objectFit: peer.screenOn ? "contain" : "cover", background: "#0a0a0a" }}
-        />
+        <>
+          <video
+            ref={setVideoRef}
+            autoPlay playsInline muted={true}
+            style={{ width: "100%", height: "100%", objectFit: (mainTrack === screenTrack) ? "contain" : "cover", background: "#0a0a0a" }}
+          />
+          
+          {pipTrack && (
+            <div 
+              onClick={(e) => { e.stopPropagation(); setIsCameraMain(!isCameraMain); }}
+              title="Click to swap videos"
+              className="absolute rounded-[8px] overflow-hidden cursor-pointer" style={{ top: 16, right: 16, width: "25%", minWidth: 100, maxWidth: 200, aspectRatio: "16/9", border: "2px solid rgba(255, 255, 255, 0.4)", boxShadow: "0 10px 30px rgba(0, 0, 0, 0.8)", background: "#000", zIndex: 10, transition: "transform 0.2s" }}
+              onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.05)"}
+              onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+            >
+              <video
+                ref={setPipVideoRef}
+                autoPlay playsInline muted={true}
+                className="w-full h-full" style={{ objectFit: "cover" }}
+              />
+            </div>
+          )}
+        </>
       ) : (
-        <div style={{
-          height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-          background: getAvatarColor(peer.name), gap: 6,
-        }}>
-          <div style={{
-            width: isFullscreen ? 64 : 36, height: isFullscreen ? 64 : 36, borderRadius: "50%",
-            background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: isFullscreen ? 24 : 14, fontWeight: 700, color: "#fff",
-            border: peer.isSpeaking ? "2px solid #22c55e" : "2px solid rgba(255,255,255,0.3)",
-          }}>
+        <div className="h-full flex flex-col items-center justify-center gap-[6px]" style={{ background: getAvatarColor(peer.name) }}>
+          <div style={{ width: isFullscreen ? 64 : 36, height: isFullscreen ? 64 : 36, borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: isFullscreen ? 24 : 14, fontWeight: 700, color: "#fff", border: peer.isSpeaking ? "2px solid #22c55e" : "2px solid rgba(255,255,255,0.3)" }}>
             {initials}
           </div>
         </div>
@@ -1639,42 +1667,30 @@ function VideoTile({ peer, muted, isPinned, onPin, isFullscreen }: {
 
       {/* Muted mic indicator overlay */}
       {!peer.micOn && (
-        <div style={{
-          position: "absolute", top: 6, right: 6,
-          background: "rgba(239,68,68,0.85)", borderRadius: "50%",
-          width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center",
-        }}>
+        <div className="absolute rounded-[50px] flex items-center justify-center" style={{ top: 6, left: 6, background: "rgba(239, 68, 68, 0.85)", width: 22, height: 22 }}>
           <MicOff size={12} color="#fff" />
         </div>
       )}
 
       {/* Connection state indicator */}
       {peer.connectionState && peer.connectionState !== "connected" && peer.socketId !== "local" && (
-        <div style={{
-          position: "absolute", top: 6, left: 6,
-          display: "flex", alignItems: "center", gap: 4,
-          background: "rgba(0,0,0,0.7)", borderRadius: 4, padding: "2px 6px",
-          fontSize: 9, color: peer.connectionState === "connecting" || peer.connectionState === "new" ? "#fbbf24" : "#f87171",
-        }}>
-          {peer.connectionState === "connecting" || peer.connectionState === "new" ? (
-            <Wifi size={9} />
-          ) : (
-            <WifiOff size={9} />
-          )}
+        <div style={{ position: "absolute", top: 32, left: 6, display: "flex", alignItems: "center", gap: 4, background: "rgba(0,0,0,0.7)", borderRadius: 4, padding: "2px 6px", fontSize: 9, color: peer.connectionState === "connecting" || peer.connectionState === "new" ? "#fbbf24" : "#f87171" }}>
+          {peer.connectionState === "connecting" || peer.connectionState === "new" ? <Wifi size={9} /> : <WifiOff size={9} />}
           {peer.connectionState}
         </div>
       )}
 
       {/* Bottom info bar */}
-      <div style={{ position: "absolute", left: 6, bottom: 6, right: 6, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
-        <span style={{
-          minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          background: "rgba(0,0,0,0.6)", color: "#fff", borderRadius: 4, padding: "3px 8px",
-          fontSize: 11, backdropFilter: "blur(4px)", fontWeight: 500,
-        }}>
+      <div className="absolute flex justify-between items-center gap-[6px]" style={{ left: 6, bottom: 6, right: 6 }}>
+        <span className="overflow-hidden rounded-[4px] p-[3px] text-[11px] font-medium" style={{ minWidth: 0, textOverflow: "ellipsis", whiteSpace: "nowrap", background: "rgba(0, 0, 0, 0.6)", color: "#fff", backdropFilter: "blur(4px)" }}>
           {peer.name}
         </span>
-        <span style={{ display: "flex", gap: 4, background: "rgba(0,0,0,0.6)", borderRadius: 4, padding: "3px 6px", backdropFilter: "blur(4px)" }}>
+        <span className="flex gap-[4px] rounded-[4px] p-[3px]" style={{ background: "rgba(0, 0, 0, 0.6)", backdropFilter: "blur(4px)" }}>
+          {onPin && (
+            <button onClick={(e) => { e.stopPropagation(); onPin(); }} title={isPinned ? "Unpin" : "Pin"} className="bg-transparent border-none p-[0px] cursor-pointer flex" style={{ color: "#fff" }}>
+              <Pin size={12} color={isPinned ? "#60a5fa" : "#fff"} />
+            </button>
+          )}
           {peer.micOn ? <Mic size={12} color="#22c55e" /> : <MicOff size={12} color="#ef4444" />}
           {peer.screenOn ? <ScreenShare size={12} color="#c084fc" /> : peer.cameraOn ? <Video size={12} color="#22c55e" /> : <VideoOff size={12} color="#ef4444" />}
         </span>
@@ -1686,10 +1702,10 @@ function VideoTile({ peer, muted, isPinned, onPin, isFullscreen }: {
 // ── Section Header ──
 function SectionHeader({ title, badge, expanded, onClick }: { title: string; badge?: string; expanded: boolean; onClick: () => void }) {
   return (
-    <div onClick={onClick} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 12px", cursor: "pointer", background: "#1c1c1c", borderBottom: "1px solid #222", userSelect: "none", transition: "background 0.15s" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#aaa", letterSpacing: "0.05em" }}>{title}</span>
-        {badge && <span style={{ fontSize: 9, background: "rgba(34,197,94,0.12)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.25)", borderRadius: 10, padding: "1px 6px", fontWeight: 600 }}>{badge}</span>}
+    <div onClick={onClick} className="flex items-center justify-between p-[6px] cursor-pointer" style={{ background: "#1c1c1c", borderBottom: "1px solid #222", userSelect: "none", transition: "background 0.15s" }}>
+      <div className="flex items-center gap-[6px]">
+        <span className="text-[11px] font-bold" style={{ textTransform: "uppercase", color: "#aaa", letterSpacing: "0.05em" }}>{title}</span>
+        {badge && <span className="text-[9px] rounded-[10px] p-[1px] font-semibold" style={{ background: "rgba(34, 197, 94, 0.12)", color: "#22c55e", border: "1px solid rgba(34, 197, 94, 0.25)" }}>{badge}</span>}
       </div>
       {expanded ? <ChevronUp size={13} color="#666" /> : <ChevronDown size={13} color="#666" />}
     </div>
@@ -1735,8 +1751,8 @@ function ControlButton({ onClick, active, danger, accent, label, showLabel, icon
         minWidth: showLabel ? 56 : 36,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 22 }}>{icon}</div>
-      {showLabel && <span style={{ fontSize: 9, marginTop: 3, fontWeight: 500, whiteSpace: "nowrap", opacity: 0.85 }}>{label}</span>}
+      <div className="flex items-center justify-center" style={{ height: 22 }}>{icon}</div>
+      {showLabel && <span className="text-[9px] font-medium" style={{ marginTop: 3, whiteSpace: "nowrap", opacity: 0.85 }}>{label}</span>}
     </button>
   );
 }
@@ -1813,11 +1829,11 @@ function MemberRow({
       </div>
 
       {/* Media Indicators & Controls */}
-      <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+      <div className="flex gap-[6px] items-center" style={{ flexShrink: 0 }}>
         {inCall && (
           <>
             {screenSharing && (
-              <span title="Screen Sharing" style={{ background: "rgba(192,132,252,0.12)", color: "#c084fc", borderRadius: 4, padding: "2px 5px", fontSize: 9, fontWeight: 600, display: "flex", alignItems: "center", gap: 2 }}>
+              <span title="Screen Sharing" className="rounded-[4px] p-[2px] text-[9px] font-semibold flex items-center gap-[2px]" style={{ background: "rgba(192, 132, 252, 0.12)", color: "#c084fc" }}>
                 <ScreenShare size={9} /> Share
               </span>
             )}
@@ -1829,32 +1845,26 @@ function MemberRow({
             </div>
 
             {isCurrentUserHost && !isSelf && participantId && (
-              <div style={{ position: "relative" }} onClick={(e) => e.stopPropagation()}>
-                <button onClick={() => setShowDropdown(!showDropdown)} style={{ background: "transparent", border: "none", color: "#666", cursor: "pointer", padding: 4, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", transition: "color 0.15s" }}
+              <div className="relative" onClick={(e) => e.stopPropagation()}>
+                <button onClick={() => setShowDropdown(!showDropdown)} className="bg-transparent border-none cursor-pointer p-[4px] rounded-[4px] flex items-center justify-center" style={{ color: "#666", transition: "color 0.15s" }}
                   onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "#aaa"; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "#666"; }}
                 >
                   <MoreHorizontal size={14} />
                 </button>
                 {showDropdown && (
-                  <div style={{
-                    position: "absolute", right: 0, top: "100%", marginTop: 4,
-                    background: "#2d2d30", border: "1px solid #3e3e42",
-                    borderRadius: 8, boxShadow: "0 8px 28px rgba(0,0,0,0.5)",
-                    zIndex: 1000, minWidth: 160, overflow: "hidden",
-                    animation: "pcp-fadeIn 0.15s",
-                  }}>
-                    <button className="pcp-dropdown-item" onClick={() => { onMuteAudio?.(participantId); setShowDropdown(false); }}
-                      style={{ width: "100%", background: "transparent", border: "none", color: "#e5e5e5", padding: "8px 14px", fontSize: 12, textAlign: "left", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+                  <div className="absolute rounded-[8px] overflow-hidden" style={{ right: 0, top: "100%", marginTop: 4, background: "#2d2d30", border: "1px solid #3e3e42", boxShadow: "0 8px 28px rgba(0, 0, 0, 0.5)", zIndex: 1000, minWidth: 160, animation: "pcp-fadeIn 0.15s" }}>
+                    <button className="pcp-dropdown-item w-full bg-transparent border-none p-[8px] text-[12px] cursor-pointer flex items-center gap-[8px]"  onClick={() => { onMuteAudio?.(participantId); setShowDropdown(false); }}
+                       style={{ color: "#e5e5e5", textAlign: "left" }}>
                       <MicOff size={13} /> Mute Audio
                     </button>
-                    <button className="pcp-dropdown-item" onClick={() => { onMuteVideo?.(participantId); setShowDropdown(false); }}
-                      style={{ width: "100%", background: "transparent", border: "none", color: "#e5e5e5", padding: "8px 14px", fontSize: 12, textAlign: "left", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+                    <button className="pcp-dropdown-item w-full bg-transparent border-none p-[8px] text-[12px] cursor-pointer flex items-center gap-[8px]"  onClick={() => { onMuteVideo?.(participantId); setShowDropdown(false); }}
+                       style={{ color: "#e5e5e5", textAlign: "left" }}>
                       <VideoOff size={13} /> Stop Video
                     </button>
                     <div style={{ height: 1, background: "#3e3e42", margin: "2px 0" }} />
-                    <button className="pcp-dropdown-item" onClick={() => { onKick?.(participantId); setShowDropdown(false); }}
-                      style={{ width: "100%", background: "transparent", border: "none", color: "#ea4335", padding: "8px 14px", fontSize: 12, textAlign: "left", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+                    <button className="pcp-dropdown-item w-full bg-transparent border-none p-[8px] text-[12px] cursor-pointer flex items-center gap-[8px]"  onClick={() => { onKick?.(participantId); setShowDropdown(false); }}
+                       style={{ color: "#ea4335", textAlign: "left" }}>
                       <Trash2 size={13} /> Remove
                     </button>
                   </div>

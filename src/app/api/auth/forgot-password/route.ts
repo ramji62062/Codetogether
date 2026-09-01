@@ -13,6 +13,13 @@ function getAppOrigin(request: Request) {
     return configuredUrl.replace(/\/+$/, "");
   }
 
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
+  const proto = request.headers.get("x-forwarded-proto") || (host?.includes("localhost") ? "http" : "https");
+  
+  if (host) {
+    return `${proto}://${host}`;
+  }
+
   return new URL(request.url).origin.replace(/\/+$/, "");
 }
 

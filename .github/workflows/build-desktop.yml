@@ -1,9 +1,36 @@
-# Temporarily disabled — all runs failing
-# name: Build Desktop Apps
-# on:
-#   push:
-#     tags:
-#       - 'v*'
-#   workflow_dispatch:
-#
-# To re-enable, fix the build issues and uncomment above.
+name: Build Desktop Apps
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build Next.js
+        run: npm run build
+      - name: Package, sign, and notarize
+        run: npx electron-builder --mac
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-desktop
+          path: dist-electron/*.{dmg,zip,blockmap}
+          if-no-files-found: warn

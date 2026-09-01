@@ -1,4 +1,6 @@
 "use client";
+import { useTheme } from "next-themes";
+import CommunityFeed from "@/components/CommunityFeed";
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -576,8 +578,8 @@ export default function DashboardPage() {
   const tabClass = (tab: string) =>
     `cursor-pointer rounded-lg px-[18px] py-2.5 text-[13px] font-bold transition-all duration-200 ${
       activeTab === tab
-        ? "border border-white/25 bg-white/10 text-white"
-        : "border border-transparent bg-transparent text-[#666]"
+        ? "border border-white/20 bg-gray-800 text-white shadow-lg"
+        : "border border-transparent bg-transparent text-gray-400 hover:text-white hover:bg-white/5"
     }`;
   const userName = user?.name || "there";
   const filtered = rooms.filter((r) =>
@@ -758,7 +760,7 @@ function WorkspaceCard({
         <div className="flex items-center gap-4">
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: cfg.color + "15", border: `1px solid ${cfg.color}30`, borderRadius: 20, padding: "5px 12px" }}>
             <RoleIcon size={14} color={cfg.color}/>
-            <span style={{ fontSize: 12, color: cfg.color, fontWeight: 700 }}>{cfg.label}</span>
+            <span className="text-[12px] font-bold" style={{ color: cfg.color }}>{cfg.label}</span>
           </div>
           <div className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-gradient-to-br from-white to-[#cccccc] text-[13px] font-extrabold text-black">
             {(user?.name || user?.email || "U").charAt(0).toUpperCase()}
@@ -824,56 +826,56 @@ function WorkspaceCard({
         {activeTab === "workspaces" && (
           <>
             {/* Quick actions row */}
-            <div className="animate-slide-up delay-200" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 16, marginBottom: 40 }}>
+            <div className="animate-slide-up delay-200 gap-[16px]" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", marginBottom: 40 }}>
               {/* Create room trigger card */}
-              <div className="glass-panel hover-card-glow" style={{ borderRadius: 20, padding: 24, display: "flex", flexDirection: "column", gap: 12, justifyContent: "space-between" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div className="glass-panel hover-card-glow rounded-[20px] p-[24px] flex flex-col gap-[12px] justify-between">
+                <div className="flex items-center gap-[10px]">
+                  <div className="rounded-[10px] flex items-center justify-center" style={{ width: 36, height: 36, background: "#fff" }}>
                     <Plus size={18} color="#000"/>
                   </div>
-                  <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Create Workspace</h3>
+                  <h3 className="text-[16px] font-bold" style={{ margin: 0 }}>Create Workspace</h3>
                 </div>
 
                 <button onClick={() => setShowCreateModal(true)}
-                  style={{ width: "100%", padding: "11px", background: "#fff", border: "1px solid #fff", borderRadius: 10, color: "#000", fontSize: 14, fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                  className="w-full p-[11px] rounded-[10px] text-[14px] font-extrabold cursor-pointer flex items-center justify-center gap-[8px]" style={{ background: "#fff", border: "1px solid #fff", color: "#000" }}>
                   <Plus size={16} /> + New Workspace
                 </button>
               </div>
 
               {/* Join room card */}
-              <div className="glass-panel hover-card-glow" style={{ borderRadius: 20, padding: 24 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div className="glass-panel hover-card-glow rounded-[20px] p-[24px]">
+                <div className="flex items-center gap-[10px]" style={{ marginBottom: 16 }}>
+                  <div className="rounded-[10px] flex items-center justify-center" style={{ width: 36, height: 36, background: "#fff" }}>
                     <Hash size={18} color="#000"/>
                   </div>
-                  <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Join via Code</h3>
+                  <h3 className="text-[16px] font-bold" style={{ margin: 0 }}>Join via Code</h3>
                 </div>
                 <input value={joinInput} onChange={e => setJoinInput(e.target.value.toUpperCase())} onKeyDown={e => e.key === "Enter" && handleJoin()}
                   placeholder="Enter code e.g. XK9P2M"
-                  style={{ width: "100%", background: "#111", border: "1px solid #222", borderRadius: 8, padding: "8px 12px", color: "#fff", fontSize: 14, letterSpacing: 2, fontWeight: 700, outline: "none", marginBottom: 12, boxSizing: "border-box" }}
+                  className="w-full rounded-[8px] p-[8px] text-[14px] font-bold" style={{ background: "#111", border: "1px solid #222", color: "#fff", letterSpacing: 2, outline: "none", marginBottom: 12, boxSizing: "border-box" }}
                 />
                 <input value={joinAccessCode} onChange={e => setJoinAccessCode(e.target.value)} onKeyDown={e => e.key === "Enter" && handleJoin()}
                   placeholder="Access code for private rooms"
-                  style={{ width: "100%", background: "#111", border: "1px solid #222", borderRadius: 8, padding: "8px 12px", color: "#fff", fontSize: 13, outline: "none", marginBottom: 10, boxSizing: "border-box" }}
+                  className="w-full rounded-[8px] p-[8px] text-[13px]" style={{ background: "#111", border: "1px solid #222", color: "#fff", outline: "none", marginBottom: 10, boxSizing: "border-box" }}
                 />
-                {joinError && <p style={{ color: "#f87171", fontSize: 12, margin: "0 0 10px" }}>{joinError}</p>}
+                {joinError && <p className="text-[12px]" style={{ color: "#f87171", margin: "0 0 10px" }}>{joinError}</p>}
                 <button onClick={handleJoin}
-                  style={{ width: "100%", padding: "10px", background: "#000", border: "1px solid #fff", borderRadius: 10, color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
+                  className="w-full p-[10px] rounded-[10px] text-[14px] font-extrabold cursor-pointer" style={{ background: "#000", border: "1px solid #fff", color: "#fff" }}>
                   Join Room →
                 </button>
               </div>
 
               {/* Stats card */}
-              <div className="glass-panel hover-card-glow" style={{ borderRadius: 20, padding: 24 }}>
-                <h3 style={{ fontSize: 14, color: "#555", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 20 }}>Your Stats</h3>
+              <div className="glass-panel hover-card-glow rounded-[20px] p-[24px]">
+                <h3 className="text-[14px] font-bold" style={{ color: "#555", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 20 }}>Your Stats</h3>
                 {[
                   { label: "Workspaces", value: rooms.length, color: "#ffffff" },
                   { label: "Account Type", value: cfg.label, color: cfg.color },
                   { label: "Status", value: "Active", color: "#4ade80" },
                 ].map(s => (
-                  <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #111" }}>
-                    <span style={{ color: "#666", fontSize: 13 }}>{s.label}</span>
-                    <span style={{ color: s.color, fontWeight: 700, fontSize: 14 }}>{s.value}</span>
+                  <div key={s.label} className="flex justify-between items-center p-[8px]" style={{ borderBottom: "1px solid #111" }}>
+                    <span className="text-[13px]" style={{ color: "#666" }}>{s.label}</span>
+                    <span className="font-bold text-[14px]" style={{ color: s.color }}>{s.value}</span>
                   </div>
                 ))}
               </div>
@@ -881,48 +883,48 @@ function WorkspaceCard({
 
             {/* Workspace list */}
             <div className="animate-slide-up delay-300">
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
-                <h2 style={{ fontSize: 20, fontWeight: 800 }}>My Workspaces</h2>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#0d0d1a", border: "1px solid #1a1a2e", borderRadius: 10, padding: "8px 14px" }}>
+              <div className="flex items-center justify-between gap-[12px]" style={{ marginBottom: 20, flexWrap: "wrap" }}>
+                <h2 className="text-[20px] font-extrabold">My Workspaces</h2>
+                <div className="flex items-center gap-[10px] rounded-[10px] p-[8px]" style={{ background: "#0d0d1a", border: "1px solid #1a1a2e" }}>
                   <Search size={14} color="#555"/>
                   <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search workspaces..."
-                    style={{ background: "none", border: "none", outline: "none", color: "#ccc", fontSize: 13, width: 180 }}
+                    className="border-none text-[13px]" style={{ background: "none", outline: "none", color: "#ccc", width: 180 }}
                   />
                 </div>
               </div>
 
               {filtered.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "60px 20px", background: "#0d0d1a", borderRadius: 20, border: "1px dashed #1a1a2e" }}>
+                <div className="p-[60px] rounded-[20px]" style={{ textAlign: "center", background: "#0d0d1a", border: "1px dashed #1a1a2e" }}>
                   <Layers size={40} color="#333" style={{ margin: "0 auto 16px" }}/>
-                  <p style={{ color: "#555", fontSize: 15, marginBottom: 16 }}>No workspaces yet</p>
-                  <button onClick={() => setShowCreateModal(true)} style={{ padding: "10px 24px", background: "#fff", border: "1px solid #fff", borderRadius: 10, color: "#000", fontWeight: 800, cursor: "pointer" }}>
+                  <p className="text-[15px]" style={{ color: "#555", marginBottom: 16 }}>No workspaces yet</p>
+                  <button onClick={() => setShowCreateModal(true)} className="p-[10px] rounded-[10px] font-extrabold cursor-pointer" style={{ background: "#fff", border: "1px solid #fff", color: "#000" }}>
                     Create your first room
                   </button>
                 </div>
               ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 16 }}>
+                <div className="gap-[16px]" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
                   {filtered.map((room, index) => {
                     const schedule = getRoomScheduleDetails(room.name);
                     const displayName = getRoomDisplayName(room.name);
 
                     return (
                       <div key={room.id} className="glass-panel hover-card-glow animate-slide-up" style={{ animationDelay: `${300 + index * 50}ms`, borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", gap: 14, cursor: "pointer", position: "relative" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div className="flex justify-between items-start">
                           <div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
-                              <h3 style={{ fontWeight: 700, fontSize: 15, margin: 0 }}>{displayName}</h3>
+                            <div className="flex items-center gap-[6px]" style={{ marginBottom: 4, flexWrap: "wrap" }}>
+                              <h3 className="font-bold text-[15px]" style={{ margin: 0 }}>{displayName}</h3>
                               {schedule.isScheduled && (
-                                <span style={{ fontSize: 10, background: "#ffffff20", color: "#ffffff", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>
+                                <span className="text-[10px] p-[1px] rounded-[4px] font-bold" style={{ background: "#ffffff20", color: "#ffffff" }}>
                                   Scheduled
                                 </span>
                               )}
                             </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <span style={{ width: 8, height: 8, borderRadius: "50%", background: LANG_COLORS[room.language] || "#888", display: "inline-block" }}/>
-                              <span style={{ fontSize: 12, color: "#555" }}>{room.language}</span>
+                            <div className="flex items-center gap-[8px]">
+                              <span className="rounded-[50px]" style={{ width: 8, height: 8, background: LANG_COLORS[room.language] || "#888", display: "inline-block" }}/>
+                              <span className="text-[12px]" style={{ color: "#555" }}>{room.language}</span>
                             </div>
                           </div>
-                          <button onClick={() => handleDelete(room.id)} style={{ background: "none", border: "none", color: "#333", cursor: "pointer", padding: 4, borderRadius: 6, transition: "color 0.15s" }}
+                          <button onClick={() => handleDelete(room.id)} className="border-none cursor-pointer p-[4px] rounded-[6px]" style={{ background: "none", color: "#333", transition: "color 0.15s" }}
                             onMouseOver={e => (e.currentTarget as HTMLElement).style.color = "#f47"}
                             onMouseOut={e => (e.currentTarget as HTMLElement).style.color = "#333"}>
                             <Trash2 size={14}/>
@@ -930,20 +932,20 @@ function WorkspaceCard({
                         </div>
 
                         {schedule.isScheduled && (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 4, background: "#111", padding: 10, borderRadius: 10, border: "1px solid #222", fontSize: 11, color: "#aaa" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <div className="flex flex-col gap-[4px] p-[10px] rounded-[10px] text-[11px]" style={{ background: "#111", border: "1px solid #222", color: "#aaa" }}>
+                            <div className="flex items-center gap-[6px]">
                               <Calendar size={11} color="#ffffff" />
                               <span>Starts: {new Date(schedule.startAt!).toLocaleString()}</span>
                             </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <div className="flex items-center gap-[6px]">
                               <Clock size={11} color="#ffffff" />
                               <span>Ends: {new Date(schedule.endAt!).toLocaleString()}</span>
                             </div>
                             {schedule.invitedEmails.length > 0 && (
-                              <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4, alignItems: "center" }}>
+                              <div className="flex gap-[4px] items-center" style={{ flexWrap: "wrap", marginTop: 4 }}>
                                 <Mail size={10} color="#555" />
                                 {schedule.invitedEmails.map((email: string) => (
-                                  <span key={email} style={{ fontSize: 9, background: "#222", color: "#888", padding: "1px 5px", borderRadius: 4 }}>
+                                  <span key={email} className="text-[9px] p-[1px] rounded-[4px]" style={{ background: "#222", color: "#888" }}>
                                     {email}
                                   </span>
                                 ))}
@@ -952,22 +954,22 @@ function WorkspaceCard({
                           </div>
                         )}
 
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#111", borderRadius: 8, padding: "5px 10px", border: "1px solid #1a1a2e" }}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-[6px] rounded-[8px] p-[5px]" style={{ background: "#111", border: "1px solid #1a1a2e" }}>
                             <Hash size={11} color="#555"/>
-                            <span style={{ fontSize: 12, fontFamily: "monospace", fontWeight: 700, letterSpacing: 2, color: "#ccc" }}>{room.room_code}</span>
-                            <button onClick={() => copyCode(room.room_code)} style={{ background: "none", border: "none", cursor: "pointer", color: "#555", padding: 0, display: "flex" }}>
+                            <span className="text-[12px] font-bold" style={{ fontFamily: "monospace", letterSpacing: 2, color: "#ccc" }}>{room.room_code}</span>
+                            <button onClick={() => copyCode(room.room_code)} className="border-none cursor-pointer p-[0px] flex" style={{ background: "none", color: "#555" }}>
                               {copiedCode === room.room_code ? <Check size={11} color="#4ade80"/> : <Copy size={11}/>}
                             </button>
                           </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 5, color: "#555", fontSize: 11 }}>
+                          <div className="flex items-center gap-[5px] text-[11px]" style={{ color: "#555" }}>
                             <Clock size={11}/>
                             {new Date(room.created_at).toLocaleDateString()}
                           </div>
                         </div>
 
                         <button onClick={() => router.push(`/room/${room.id}`)}
-                          style={{ padding: "9px", background: "#fff", border: "1px solid #fff", borderRadius: 10, color: "#000", fontSize: 13, fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.15s" }}
+                          className="p-[9px] rounded-[10px] text-[13px] font-extrabold cursor-pointer flex items-center justify-center gap-[8px]" style={{ background: "#fff", border: "1px solid #fff", color: "#000", transition: "all 0.15s" }}
                           onMouseOver={e => { (e.currentTarget as HTMLElement).style.background = "#000"; (e.currentTarget as HTMLElement).style.color = "#fff"; (e.currentTarget as HTMLElement).style.borderColor = "#fff"; }}
                           onMouseOut={e => { (e.currentTarget as HTMLElement).style.background = "#fff"; (e.currentTarget as HTMLElement).style.color = "#000"; (e.currentTarget as HTMLElement).style.borderColor = "#fff"; }}>
                           <Code2 size={14}/> Open Workspace <ArrowRight size={13}/>
@@ -984,23 +986,23 @@ function WorkspaceCard({
         {activeTab === "shared_library" && (
           /* Shared Library (Public) Tab */
           <div className="animate-slide-up delay-200">
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+            <div className="flex items-center justify-between gap-[12px]" style={{ marginBottom: 20, flexWrap: "wrap" }}>
               <div>
-                <h2 style={{ fontSize: 22, fontWeight: 800, color: "#fff", margin: 0 }}>🌐 Shared Public Library</h2>
-                <p style={{ fontSize: 13, color: "#777", marginTop: 4 }}>Explore public projects, templates, media files & code samples</p>
+                <h2 className="text-[22px] font-extrabold" style={{ color: "#fff", margin: 0 }}>🌐 Shared Public Library</h2>
+                <p className="text-[13px]" style={{ color: "#777", marginTop: 4 }}>Explore public projects, templates, media files & code samples</p>
               </div>
 
               {/* Search Bar for Shared Library by Name, Author, Category */}
-              <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#0d0d1a", border: "1px solid #1a1a2e", borderRadius: 12, padding: "10px 16px", width: "100%", maxWidth: 320 }}>
+              <div className="flex items-center gap-[10px] rounded-[12px] p-[10px] w-full" style={{ background: "#0d0d1a", border: "1px solid #1a1a2e", maxWidth: 320 }}>
                 <Search size={15} color="#666"/>
                 <input value={librarySearch} onChange={e => setLibrarySearch(e.target.value)} placeholder="Search by workspace name..."
-                  style={{ background: "none", border: "none", outline: "none", color: "#fff", fontSize: 13, width: "100%" }}
+                  className="border-none text-[13px] w-full" style={{ background: "none", outline: "none", color: "#fff" }}
                 />
               </div>
             </div>
 
             {/* Predefined Categories Filter */}
-            <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 14, marginBottom: 20 }}>
+            <div className="flex gap-[8px]" style={{ overflowX: "auto", paddingBottom: 14, marginBottom: 20 }}>
               {CATEGORIES.map(cat => (
                 <button
                   key={cat}
@@ -1023,40 +1025,40 @@ function WorkspaceCard({
             </div>
 
             {filteredSharedLibrary.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "60px 20px", background: "#0d0d1a", borderRadius: 20, border: "1px dashed #1a1a2e" }}>
+              <div className="p-[60px] rounded-[20px]" style={{ textAlign: "center", background: "#0d0d1a", border: "1px dashed #1a1a2e" }}>
                 <Layers size={40} color="#333" style={{ margin: "0 auto 16px" }}/>
-                <p style={{ color: "#555", fontSize: 15 }}>No matching public library workspaces found.</p>
+                <p className="text-[15px]" style={{ color: "#555" }}>No matching public library workspaces found.</p>
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 16 }}>
+              <div className="gap-[16px]" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
                 {filteredSharedLibrary.map((item, index) => (
                   <div
                     key={item.id}
                     className="glass-panel hover-card-glow animate-slide-up" style={{ animationDelay: `${200 + index * 50}ms`, borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", gap: 12, cursor: "pointer" }}
                     onClick={() => openLibraryItem(item)}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div className="flex justify-between items-start">
                       <div>
-                        <span style={{ fontSize: 10, background: "#ffffff20", color: "#ffffff", padding: "2px 8px", borderRadius: 10, fontWeight: 700, textTransform: "uppercase" }}>
+                        <span className="text-[10px] p-[2px] rounded-[10px] font-bold" style={{ background: "#ffffff20", color: "#ffffff", textTransform: "uppercase" }}>
                           {item.meta?.category || "Project"}
                         </span>
-                        <h3 style={{ fontWeight: 800, fontSize: 16, marginTop: 6, color: "#ffffff" }}>
+                        <h3 className="font-extrabold text-[16px]" style={{ marginTop: 6, color: "#ffffff" }}>
                           {getRoomDisplayName(item.meta?.title || item.name)}
                         </h3>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: LANG_COLORS[item.language] || "#888" }}/>
-                        <span style={{ fontSize: 12, color: "#94a3b8" }}>{item.language}</span>
+                      <div className="flex items-center gap-[4px]">
+                        <span className="rounded-[50px]" style={{ width: 8, height: 8, background: LANG_COLORS[item.language] || "#888" }}/>
+                        <span className="text-[12px]" style={{ color: "#94a3b8" }}>{item.language}</span>
                       </div>
                     </div>
 
-                    <p style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.5, margin: "4px 0 8px", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", height: 38 }}>
+                    <p className="text-[13px] overflow-hidden" style={{ color: "#cbd5e1", lineHeight: 1.5, margin: "4px 0 8px", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", height: 38 }}>
                       {item.meta?.description || "Public workspace project with code and media files."}
                     </p>
 
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #1e293b", paddingTop: 10, marginTop: 4 }}>
-                      <span style={{ fontSize: 11, color: "#94a3b8" }}>by <strong style={{ color: "#e2e8f0" }}>{item.meta?.authorName || "Anonymous"}</strong></span>
-                      <span style={{ fontSize: 11, color: "#34d399", fontWeight: 700 }}>Open & Explore →</span>
+                    <div className="flex justify-between items-center" style={{ borderTop: "1px solid #1e293b", paddingTop: 10, marginTop: 4 }}>
+                      <span className="text-[11px]" style={{ color: "#94a3b8" }}>by <strong style={{ color: "#e2e8f0" }}>{item.meta?.authorName || "Anonymous"}</strong></span>
+                      <span className="text-[11px] font-bold" style={{ color: "#34d399" }}>Open & Explore →</span>
                     </div>
                   </div>
                 ))}
@@ -1068,28 +1070,28 @@ function WorkspaceCard({
         {activeTab === "private_library" && (
           /* Private Library (Access Code) Tab */
           <div className="animate-slide-up delay-200">
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+            <div className="flex items-center justify-between gap-[12px]" style={{ marginBottom: 20, flexWrap: "wrap" }}>
               <div>
-                <h2 style={{ fontSize: 22, fontWeight: 800, color: "#fff", margin: 0 }}>🔒 Private Library (Access Code Required)</h2>
-                <p style={{ fontSize: 13, color: "#777", marginTop: 4 }}>Access code protected private workspaces & media libraries</p>
+                <h2 className="text-[22px] font-extrabold" style={{ color: "#fff", margin: 0 }}>🔒 Private Library (Access Code Required)</h2>
+                <p className="text-[13px]" style={{ color: "#777", marginTop: 4 }}>Access code protected private workspaces & media libraries</p>
               </div>
 
               {/* Search Bar for Private Library by Name */}
-              <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#0d0d1a", border: "1px solid #1a1a2e", borderRadius: 12, padding: "10px 16px", width: "100%", maxWidth: 320 }}>
+              <div className="flex items-center gap-[10px] rounded-[12px] p-[10px] w-full" style={{ background: "#0d0d1a", border: "1px solid #1a1a2e", maxWidth: 320 }}>
                 <Search size={15} color="#666"/>
                 <input value={privateSearch} onChange={e => setPrivateSearch(e.target.value)} placeholder="Search private workspaces..."
-                  style={{ background: "none", border: "none", outline: "none", color: "#fff", fontSize: 13, width: "100%" }}
+                  className="border-none text-[13px] w-full" style={{ background: "none", outline: "none", color: "#fff" }}
                 />
               </div>
             </div>
 
             {filteredPrivateLibrary.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "60px 20px", background: "#0d0d1a", borderRadius: 20, border: "1px dashed #1a1a2e" }}>
+              <div className="p-[60px] rounded-[20px]" style={{ textAlign: "center", background: "#0d0d1a", border: "1px dashed #1a1a2e" }}>
                 <Lock size={40} color="#555" style={{ margin: "0 auto 16px" }}/>
-                <p style={{ color: "#555", fontSize: 15 }}>No private library workspaces found.</p>
+                <p className="text-[15px]" style={{ color: "#555" }}>No private library workspaces found.</p>
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 16 }}>
+              <div className="gap-[16px]" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
                 {filteredPrivateLibrary.map((item, index) => {
                   const isUnlocked = item.created_by === user?.id || unlockedIds.has(item.id);
 
@@ -1099,27 +1101,27 @@ function WorkspaceCard({
                       className="glass-panel hover-card-glow animate-slide-up" style={{ animationDelay: `${200 + index * 50}ms`, borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", gap: 12, cursor: "pointer", border: isUnlocked ? "1px solid #10b98144" : "1px solid #f43f5e33" }}
                       onClick={() => handleAccessPrivateItem(item)}
                     >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <div className="flex justify-between items-start">
                         <div>
                           <span style={{ fontSize: 10, background: isUnlocked ? "#10b98120" : "#f43f5e20", color: isUnlocked ? "#34d399" : "#f87171", padding: "2px 8px", borderRadius: 10, fontWeight: 700, textTransform: "uppercase" }}>
                             {isUnlocked ? "Unlocked" : "🔒 Private"}
                           </span>
-                          <h3 style={{ fontWeight: 800, fontSize: 16, marginTop: 6, color: "#ffffff" }}>
+                          <h3 className="font-extrabold text-[16px]" style={{ marginTop: 6, color: "#ffffff" }}>
                             {getRoomDisplayName(item.meta?.title || item.name)}
                           </h3>
                         </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          <span style={{ width: 8, height: 8, borderRadius: "50%", background: LANG_COLORS[item.language] || "#888" }}/>
-                          <span style={{ fontSize: 12, color: "#94a3b8" }}>{item.language}</span>
+                        <div className="flex items-center gap-[4px]">
+                          <span className="rounded-[50px]" style={{ width: 8, height: 8, background: LANG_COLORS[item.language] || "#888" }}/>
+                          <span className="text-[12px]" style={{ color: "#94a3b8" }}>{item.language}</span>
                         </div>
                       </div>
 
-                      <p style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.5, margin: "4px 0 8px", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", height: 38 }}>
+                      <p className="text-[13px] overflow-hidden" style={{ color: "#cbd5e1", lineHeight: 1.5, margin: "4px 0 8px", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", height: 38 }}>
                         {item.meta?.description || "Private workspace containing media files and source code."}
                       </p>
 
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #1e293b", paddingTop: 10, marginTop: 4 }}>
-                        <span style={{ fontSize: 11, color: "#94a3b8" }}>by <strong style={{ color: "#e2e8f0" }}>{item.meta?.authorName || "Anonymous"}</strong></span>
+                      <div className="flex justify-between items-center" style={{ borderTop: "1px solid #1e293b", paddingTop: 10, marginTop: 4 }}>
+                        <span className="text-[11px]" style={{ color: "#94a3b8" }}>by <strong style={{ color: "#e2e8f0" }}>{item.meta?.authorName || "Anonymous"}</strong></span>
                         <span style={{ fontSize: 12, color: isUnlocked ? "#34d399" : "#f87171", fontWeight: 700 }}>
                           {isUnlocked ? "Open Workspace →" : "Enter Passcode 🔒"}
                         </span>
@@ -1135,87 +1137,24 @@ function WorkspaceCard({
 
         {activeTab === "community" && (
           <div className="animate-slide-up delay-200">
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
-              <div>
-                <h2 style={{ fontSize: 22, fontWeight: 800, color: "#fff", margin: 0 }}>Community Profiles</h2>
-                <p style={{ color: "#777", fontSize: 13, marginTop: 4 }}>Follow developers, see their workspace stats, message them, and leave reviews.</p>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#0d0d1a", border: "1px solid #1a1a2e", borderRadius: 12, padding: "10px 16px", width: "100%", maxWidth: 320 }}>
-                <Search size={15} color="#666"/>
-                <input value={communitySearch} onChange={e => setCommunitySearch(e.target.value)} placeholder="Search profiles..."
-                  style={{ background: "none", border: "none", outline: "none", color: "#fff", fontSize: 13, width: "100%" }}
-                />
-              </div>
-            </div>
-
-            {filteredCommunityUsers.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "60px 20px", background: "#0d0d1a", borderRadius: 20, border: "1px dashed #1a1a2e" }}>
-                <Users size={40} color="#333" style={{ margin: "0 auto 16px" }}/>
-                <p style={{ color: "#555", fontSize: 15 }}>No profiles found.</p>
-              </div>
-            ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 16 }}>
-                {filteredCommunityUsers.map((person) => (
-                  <div key={person.id} className="glass-panel hover-card-glow" style={{ borderRadius: 16, padding: 18, display: "flex", flexDirection: "column", gap: 14 }}>
-                    <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                      <div style={{ width: 48, height: 48, borderRadius: "50%", background: person.avatar_url || "linear-gradient(135deg,#ffffff,#cccccc)", display: "flex", alignItems: "center", justifyContent: "center", color: person.avatar_url ? "#fff" : "#000", fontSize: 18, fontWeight: 900, overflow: "hidden" }}>
-                        {person.avatar_url?.startsWith("data:") ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={person.avatar_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                        ) : (person.name || person.email || "U").charAt(0).toUpperCase()}
-                      </div>
-                      <div style={{ minWidth: 0 }}>
-                        <h3 style={{ margin: 0, color: "#fff", fontSize: 15, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{person.name || person.email || "User"}</h3>
-                        <p style={{ margin: "3px 0 0", color: "#666", fontSize: 12, textTransform: "capitalize" }}>{person.role || "student"} · {person.profileVisibility}</p>
-                      </div>
-                    </div>
-
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
-                      {[
-                        { label: "Projects", value: person.projectCount },
-                        { label: "Followers", value: person.followers },
-                        { label: "Status", value: person.following ? "Following" : "Open" },
-                      ].map((stat) => (
-                        <div key={stat.label} style={{ background: "#0d0d1a", border: "1px solid #1a1a2e", borderRadius: 10, padding: "8px 6px", textAlign: "center" }}>
-                          <div style={{ color: "#ffffff", fontWeight: 900, fontSize: 14 }}>{stat.value}</div>
-                          <div style={{ color: "#666", fontSize: 10, marginTop: 2 }}>{stat.label}</div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 36px 36px", gap: 8 }}>
-                      <button onClick={() => toggleFollow(person)} style={{ padding: "9px 10px", background: person.following ? "#222" : "#ffffff", border: "1px solid #ffffff55", borderRadius: 10, color: "#fff", fontWeight: 800, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                        <UserPlus size={14}/> {person.following ? "Following" : "Follow"}
-                      </button>
-                      <button onClick={() => sendDirectMessage(person)} title={person.profileVisibility === "private" && !(person.following && person.followsMe) ? "Private profile: mutual follow required" : "Message"} style={{ background: "#0d0d1a", border: "1px solid #1a1a2e", borderRadius: 10, color: person.profileVisibility === "private" && !(person.following && person.followsMe) ? "#666" : "#4ade80", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <MessageCircle size={15}/>
-                      </button>
-                      <button onClick={() => leaveReview(person)} title="Review" style={{ background: "#0d0d1a", border: "1px solid #1a1a2e", borderRadius: 10, color: "#facc15", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <Star size={15}/>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            {/* The new unified Community Feed & Live Hub Component */}
+            <CommunityFeed currentUserId={user?.id || ""} />
           </div>
         )}
 
-
-
         {activeTab === "account" && (
           /* My Profile Tab */
-          <div className="animate-slide-up delay-200" style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start" }}>
+          <div className="animate-slide-up delay-200 flex gap-[24px] items-start" style={{ flexWrap: "wrap" }}>
             {/* Left Column: Account Profile Editor */}
-            <div className="glass-panel" style={{ flex: 1, minWidth: 320, borderRadius: 20, overflow: "hidden" }}>
+            <div className="glass-panel rounded-[20px] overflow-hidden" style={{ flex: 1, minWidth: 320 }}>
               <AccountProfilePanel />
             </div>
 
             {/* Right Column: Gamified Coding Progress Tracker */}
-            <div className="glass-panel" style={{ width: "100%", maxWidth: 440, borderRadius: 20, padding: 24, display: "flex", flexDirection: "column", gap: 20 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, borderBottom: "1px solid #1a1a2e", paddingBottom: 12 }}>
+            <div className="glass-panel w-full rounded-[20px] p-[24px] flex flex-col gap-[20px]" style={{ maxWidth: 440 }}>
+              <div className="flex items-center gap-[8px]" style={{ borderBottom: "1px solid #1a1a2e", paddingBottom: 12 }}>
                 <Award size={20} color="#ffd93d" />
-                <h2 style={{ fontSize: 18, fontWeight: 800, color: "#fff", margin: 0 }}>My Personal Progress</h2>
+                <h2 className="text-[18px] font-extrabold" style={{ color: "#fff", margin: 0 }}>My Personal Progress</h2>
               </div>
 
               {/* Rank / Level */}
@@ -1268,8 +1207,8 @@ function WorkspaceCard({
                 const hasVeteran = totalProjects >= 10;
 
                 return (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                  <div className="flex flex-col gap-[16px]">
+                    <div className="flex items-center gap-[16px]">
                       <div style={{
                         width: 60, height: 60, borderRadius: "50%", background: `linear-gradient(135deg, ${badgeColor}, #0d0d1a)`,
                         border: `2px solid ${badgeColor}`, display: "flex", alignItems: "center", justifyContent: "center",
@@ -1278,30 +1217,30 @@ function WorkspaceCard({
                         {levelNum}
                       </div>
                       <div>
-                        <div style={{ fontSize: 13, color: "#666", fontWeight: 600 }}>CURRENT RANK</div>
-                        <div style={{ fontSize: 18, fontWeight: 900, color: "#fff" }}>{levelName}</div>
+                        <div className="text-[13px] font-semibold" style={{ color: "#666" }}>CURRENT RANK</div>
+                        <div className="text-[18px] font-black" style={{ color: "#fff" }}>{levelName}</div>
                       </div>
                     </div>
 
                     {/* Progress Bar */}
                     <div>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 6 }}>
+                      <div className="flex justify-between text-[12px]" style={{ color: "#888", marginBottom: 6 }}>
                         <span>Level Progress ({totalProjects} / {totalProjects >= 15 ? "Max" : currentTarget} projects)</span>
                         <span>{Math.round(levelProgress)}%</span>
                       </div>
-                      <div style={{ height: 8, background: "#111", borderRadius: 99, overflow: "hidden", border: "1px solid #222" }}>
+                      <div className="rounded-[99px] overflow-hidden" style={{ height: 8, background: "#111", border: "1px solid #222" }}>
                         <div style={{ height: "100%", width: `${levelProgress}%`, background: `linear-gradient(90deg, ${badgeColor}, #7c3aed)`, borderRadius: 99 }} />
                       </div>
                       {totalProjects < 15 && (
-                        <div style={{ fontSize: 11, color: "#555", marginTop: 6, textAlign: "right" }}>
+                        <div className="text-[11px]" style={{ color: "#555", marginTop: 6, textAlign: "right" }}>
                           {currentTarget - totalProjects} more project{currentTarget - totalProjects !== 1 ? "s" : ""} to reach Level {levelNum + 1}
                         </div>
                       )}
                     </div>
 
                     {/* Achievements Checklist */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: "0.05em" }}>Achievements</div>
+                    <div className="flex flex-col gap-[10px]" style={{ marginTop: 10 }}>
+                      <div className="text-[12px] font-bold" style={{ color: "#888", textTransform: "uppercase", letterSpacing: "0.05em" }}>Achievements</div>
                       
                       {[
                         { title: "First Commit", desc: "Create your first collaborative workspace", done: hasFirstCommit },
@@ -1322,7 +1261,7 @@ function WorkspaceCard({
                           </div>
                           <div>
                             <div style={{ fontSize: 13, fontWeight: 700, color: ach.done ? "#10b981" : "#ccc" }}>{ach.title}</div>
-                            <div style={{ fontSize: 11, color: "#666" }}>{ach.desc}</div>
+                            <div className="text-[11px]" style={{ color: "#666" }}>{ach.desc}</div>
                           </div>
                         </div>
                       ))}
@@ -1335,17 +1274,17 @@ function WorkspaceCard({
         )}
 
         {activeTab === "progress" && (
-          <div className="animate-slide-up delay-200" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 14 }}>
+          <div className="animate-slide-up delay-200 flex flex-col gap-[20px]">
+            <div className="gap-[14px]" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
               {[
                 { label: "Total Workspaces", value: rooms.length, color: "#ffffff" },
                 { label: "Shared Templates", value: libraryRooms.filter(r => r.created_by === user?.id).length, color: "#10b981" },
                 { label: "Languages Used", value: new Set(rooms.map(r => r.language)).size, color: "#ffffff" },
                 { label: "Student Status", value: cfg.label, color: cfg.color },
               ].map((stat) => (
-                <div key={stat.label} className="glass-panel hover-card-glow" style={{ borderRadius: 16, padding: 18 }}>
-                  <div style={{ fontSize: 11, color: "#666", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>{stat.label}</div>
-                  <div style={{ fontSize: 26, fontWeight: 900, color: stat.color }}>{stat.value}</div>
+                <div key={stat.label} className="glass-panel hover-card-glow rounded-[16px] p-[18px]">
+                  <div className="text-[11px] font-extrabold" style={{ color: "#666", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>{stat.label}</div>
+                  <div className="text-[26px] font-black" style={{ color: stat.color }}>{stat.value}</div>
                 </div>
               ))}
             </div>
@@ -1356,25 +1295,25 @@ function WorkspaceCard({
 
       {/* Explore Dialog Modal (Monaco Read-Only + Zip support) */}
       {exploreItem && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 20 }}>
-          <div style={{ background: "#1e1e1e", border: "1px solid #333", borderRadius: 16, width: "100%", maxWidth: 1000, height: "85vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 24px 64px rgba(0,0,0,0.8)" }}>
+        <div className="flex items-center justify-center p-[20px]" style={{ position: "fixed", inset: 0, background: "rgba(0, 0, 0, 0.85)", zIndex: 9999 }}>
+          <div className="rounded-[16px] w-full flex flex-col overflow-hidden" style={{ background: "#1e1e1e", border: "1px solid #333", maxWidth: 1000, height: "85vh", boxShadow: "0 24px 64px rgba(0, 0, 0, 0.8)" }}>
             
             {/* Modal Header */}
-            <div style={{ height: 56, borderBottom: "1px solid #2b2b2b", background: "#252526", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 10, background: "#ffffff20", color: "#ffffff", padding: "2px 8px", borderRadius: 10, fontWeight: 700, textTransform: "uppercase" }}>
+            <div className="flex items-center justify-between p-[0px]" style={{ height: 56, borderBottom: "1px solid #2b2b2b", background: "#252526" }}>
+              <div className="flex items-center gap-[10px]">
+                <span className="text-[10px] p-[2px] rounded-[10px] font-bold" style={{ background: "#ffffff20", color: "#ffffff", textTransform: "uppercase" }}>
                   {exploreItem.meta?.category || "Project"}
                 </span>
-                <span style={{ fontSize: 15, fontWeight: 800, color: "#fff" }}>
+                <span className="text-[15px] font-extrabold" style={{ color: "#fff" }}>
                   {getRoomDisplayName(exploreItem.meta?.title || exploreItem.name)}
                 </span>
-                <span style={{ fontSize: 12, color: "#94a3b8" }}>by {exploreItem.meta?.authorName || "Anonymous"}</span>
+                <span className="text-[12px]" style={{ color: "#94a3b8" }}>by {exploreItem.meta?.authorName || "Anonymous"}</span>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div className="flex items-center gap-[8px]">
                 <button
                   disabled={cloningProject}
                   onClick={() => downloadProjectAsZip(exploreItem.meta?.title || "project", exploreItem.files_json || [])}
-                  style={{ padding: "6px 12px", background: "#2a2a2a", border: "1px solid #444", borderRadius: 8, color: "#ccc", fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}
+                  className="p-[6px] rounded-[8px] text-[12px] font-semibold cursor-pointer flex items-center gap-[5px]" style={{ background: "#2a2a2a", border: "1px solid #444", color: "#ccc" }}
                 >
                   <Download size={13} /> Download ZIP
                 </button>
@@ -1387,7 +1326,7 @@ function WorkspaceCard({
                 </button>
                 <button
                   onClick={() => setExploreItem(null)}
-                  style={{ background: "none", border: "none", color: "#666", cursor: "pointer", display: "flex", padding: 4 }}
+                  className="border-none cursor-pointer flex p-[4px]" style={{ background: "none", color: "#666" }}
                 >
                   <X size={20} />
                 </button>
@@ -1395,15 +1334,15 @@ function WorkspaceCard({
             </div>
 
             {/* Modal Body */}
-            <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+            <div className="flex" style={{ flex: 1, minHeight: 0 }}>
               
               {/* Explorer Sidebar */}
-              <div style={{ width: 220, background: "#252526", borderRight: "1px solid #2d2d2d", display: "flex", flexDirection: "column", overflowY: "auto", padding: 12 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#555", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}>
+              <div className="flex flex-col p-[12px]" style={{ width: 220, background: "#252526", borderRight: "1px solid #2d2d2d", overflowY: "auto" }}>
+                <div className="text-[10px] font-bold flex items-center gap-[4px]" style={{ color: "#555", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
                   <Folder size={11}/> Project Files
                 </div>
                 
-                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <div className="flex flex-col gap-[2px]">
                   {exploreItem.files_json && exploreItem.files_json.filter((f: any) => !f.isFolder).map((file: any) => {
                     const path = file.path || file.name;
                     return (
@@ -1427,7 +1366,7 @@ function WorkspaceCard({
                         }}
                       >
                         <File size={12} color={exploreActiveFile === path ? "#ffffff" : "#666"} />
-                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <span className="overflow-hidden" style={{ textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {path}
                         </span>
                       </div>
@@ -1437,15 +1376,15 @@ function WorkspaceCard({
               </div>
 
               {/* Editor Workspace */}
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#1e1e1e", position: "relative" }}>
+              <div className="flex flex-col relative" style={{ flex: 1, background: "#1e1e1e" }}>
                 {exploreActiveFile ? (
                   <>
-                    <div style={{ height: 28, background: "#2d2d2d", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", borderBottom: "1px solid #252526" }}>
-                      <span style={{ fontSize: 11, color: "#888", fontFamily: "monospace" }}>{exploreActiveFile}</span>
+                    <div className="flex items-center justify-between p-[0px]" style={{ height: 28, background: "#2d2d2d", borderBottom: "1px solid #252526" }}>
+                      <span className="text-[11px]" style={{ color: "#888", fontFamily: "monospace" }}>{exploreActiveFile}</span>
                       <button
                         onClick={() => handleDownloadFile(exploreActiveFile, exploreFileContent)}
                         title="Download file"
-                        style={{ background: "none", border: "none", color: "#555", cursor: "pointer", display: "flex", padding: 2 }}
+                        className="border-none cursor-pointer flex p-[2px]" style={{ background: "none", color: "#555" }}
                         onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#ccc"}
                         onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#555"}
                       >
@@ -1472,9 +1411,9 @@ function WorkspaceCard({
                     </div>
                   </>
                 ) : (
-                  <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10, color: "#444" }}>
+                  <div className="flex items-center justify-center flex-col gap-[10px]" style={{ flex: 1, color: "#444" }}>
                     <Laptop size={32} />
-                    <span style={{ fontSize: 13 }}>Select a file to preview code</span>
+                    <span className="text-[13px]">Select a file to preview code</span>
                   </div>
                 )}
               </div>
@@ -1486,40 +1425,40 @@ function WorkspaceCard({
 
       {/* ── Workspace Creation Modal ── */}
       {showCreateModal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 20 }}>
-          <div style={{ background: "#0d0d18", border: "1px solid #1a1a2e", borderRadius: 20, width: "100%", maxWidth: 520, padding: 32, boxShadow: "0 24px 64px rgba(0,0,0,0.8)", animation: "pcp-fadeIn 0.2s ease-out" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-              <h2 style={{ fontSize: 22, fontWeight: 900, color: "#fff", margin: 0 }}>✨ Create New Workspace</h2>
-              <button onClick={() => setShowCreateModal(false)} style={{ background: "none", border: "none", color: "#666", cursor: "pointer" }}><X size={22} /></button>
+        <div className="flex items-center justify-center p-[20px]" style={{ position: "fixed", inset: 0, background: "rgba(0, 0, 0, 0.85)", zIndex: 9999 }}>
+          <div className="rounded-[20px] w-full p-[32px]" style={{ background: "#0d0d18", border: "1px solid #1a1a2e", maxWidth: 520, boxShadow: "0 24px 64px rgba(0, 0, 0, 0.8)", animation: "pcp-fadeIn 0.2s ease-out" }}>
+            <div className="flex items-center justify-between" style={{ marginBottom: 24 }}>
+              <h2 className="text-[22px] font-black" style={{ color: "#fff", margin: 0 }}>✨ Create New Workspace</h2>
+              <button onClick={() => setShowCreateModal(false)} className="border-none cursor-pointer" style={{ background: "none", color: "#666" }}><X size={22} /></button>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div className="flex flex-col gap-[16px]">
               {/* Workspace Name */}
               <div>
-                <label style={{ fontSize: 11, color: "#888", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Workspace Name</label>
-                <input value={createWorkspaceTitle} onChange={e => setCreateWorkspaceTitle(e.target.value)} placeholder="My Awesome Project" style={{ width: "100%", background: "#111", border: "1px solid #222", borderRadius: 10, padding: "10px 14px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+                <label className="text-[11px] font-bold" style={{ color: "#888", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Workspace Name</label>
+                <input value={createWorkspaceTitle} onChange={e => setCreateWorkspaceTitle(e.target.value)} placeholder="My Awesome Project" className="w-full rounded-[10px] p-[10px] text-[14px]" style={{ background: "#111", border: "1px solid #222", color: "#fff", outline: "none", boxSizing: "border-box" }} />
               </div>
 
               {/* Language */}
               <div>
-                <label style={{ fontSize: 11, color: "#888", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Language</label>
-                <select value={createWorkspaceLang} onChange={e => setCreateWorkspaceLang(e.target.value)} style={{ width: "100%", background: "#111", border: "1px solid #222", borderRadius: 10, padding: "10px 14px", color: "#ccc", fontSize: 13, outline: "none" }}>
+                <label className="text-[11px] font-bold" style={{ color: "#888", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Language</label>
+                <select value={createWorkspaceLang} onChange={e => setCreateWorkspaceLang(e.target.value)} className="w-full rounded-[10px] p-[10px] text-[13px]" style={{ background: "#111", border: "1px solid #222", color: "#ccc", outline: "none" }}>
                   {LANGS.map(l => <option key={l} value={l}>{l.charAt(0).toUpperCase() + l.slice(1)}</option>)}
                 </select>
               </div>
 
               {/* Category */}
               <div>
-                <label style={{ fontSize: 11, color: "#888", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Category</label>
-                <select value={createWorkspaceCategory} onChange={e => setCreateWorkspaceCategory(e.target.value)} style={{ width: "100%", background: "#111", border: "1px solid #222", borderRadius: 10, padding: "10px 14px", color: "#ccc", fontSize: 13, outline: "none" }}>
+                <label className="text-[11px] font-bold" style={{ color: "#888", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Category</label>
+                <select value={createWorkspaceCategory} onChange={e => setCreateWorkspaceCategory(e.target.value)} className="w-full rounded-[10px] p-[10px] text-[13px]" style={{ background: "#111", border: "1px solid #222", color: "#ccc", outline: "none" }}>
                   {CATEGORIES.filter(c => c !== "All").map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
 
               {/* Type: Public / Private */}
               <div>
-                <label style={{ fontSize: 11, color: "#888", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: 8 }}>Visibility</label>
-                <div style={{ display: "flex", gap: 10 }}>
+                <label className="text-[11px] font-bold" style={{ color: "#888", textTransform: "uppercase", display: "block", marginBottom: 8 }}>Visibility</label>
+                <div className="flex gap-[10px]">
                   <button onClick={() => setCreateWorkspaceType("public")} style={{ flex: 1, padding: "12px", background: createWorkspaceType === "public" ? "#10b98120" : "#111", border: createWorkspaceType === "public" ? "2px solid #10b981" : "1px solid #222", borderRadius: 12, color: createWorkspaceType === "public" ? "#34d399" : "#888", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.15s" }}>
                     <Globe size={16} /> 🌐 Public (Shared)
                   </button>
@@ -1532,9 +1471,9 @@ function WorkspaceCard({
               {/* Access Code (only for Private) */}
               {createWorkspaceType === "private" && (
                 <div>
-                  <label style={{ fontSize: 11, color: "#f87171", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: 6 }}>🔑 Access Code (Required)</label>
-                  <input value={createWorkspaceAccessCode} onChange={e => setCreateWorkspaceAccessCode(e.target.value)} placeholder="Enter a passcode e.g. MYCODE123" style={{ width: "100%", background: "#111", border: "1px solid #f43f5e44", borderRadius: 10, padding: "10px 14px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box", letterSpacing: 1 }} />
-                  <p style={{ fontSize: 11, color: "#777", marginTop: 6 }}>Share this code with users who need access to your private workspace.</p>
+                  <label className="text-[11px] font-bold" style={{ color: "#f87171", textTransform: "uppercase", display: "block", marginBottom: 6 }}>🔑 Access Code (Required)</label>
+                  <input value={createWorkspaceAccessCode} onChange={e => setCreateWorkspaceAccessCode(e.target.value)} placeholder="Enter a passcode e.g. MYCODE123" className="w-full rounded-[10px] p-[10px] text-[14px]" style={{ background: "#111", border: "1px solid #f43f5e44", color: "#fff", outline: "none", boxSizing: "border-box", letterSpacing: 1 }} />
+                  <p className="text-[11px]" style={{ color: "#777", marginTop: 6 }}>Share this code with users who need access to your private workspace.</p>
                 </div>
               )}
 
@@ -1549,17 +1488,17 @@ function WorkspaceCard({
 
       {/* ── Private Unlock Modal ── */}
       {unlockingItem && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 20 }}>
-          <div style={{ background: "#0d0d18", border: "1px solid #f43f5e33", borderRadius: 20, width: "100%", maxWidth: 440, padding: 32, boxShadow: "0 24px 64px rgba(0,0,0,0.8)", textAlign: "center", animation: "pcp-fadeIn 0.2s ease-out" }}>
-            <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#f43f5e15", border: "2px solid #f43f5e44", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+        <div className="flex items-center justify-center p-[20px]" style={{ position: "fixed", inset: 0, background: "rgba(0, 0, 0, 0.88)", zIndex: 9999 }}>
+          <div className="rounded-[20px] w-full p-[32px]" style={{ background: "#0d0d18", border: "1px solid #f43f5e33", maxWidth: 440, boxShadow: "0 24px 64px rgba(0, 0, 0, 0.8)", textAlign: "center", animation: "pcp-fadeIn 0.2s ease-out" }}>
+            <div className="rounded-[50px] flex items-center justify-center" style={{ width: 64, height: 64, background: "#f43f5e15", border: "2px solid #f43f5e44", margin: "0 auto 16px" }}>
               <Shield size={28} color="#f87171" />
             </div>
-            <h2 style={{ fontSize: 20, fontWeight: 900, color: "#fff", marginBottom: 6 }}>🔒 Private Workspace</h2>
-            <h3 style={{ fontSize: 15, fontWeight: 600, color: "#ffffff", marginBottom: 4 }}>
+            <h2 className="text-[20px] font-black" style={{ color: "#fff", marginBottom: 6 }}>🔒 Private Workspace</h2>
+            <h3 className="text-[15px] font-semibold" style={{ color: "#ffffff", marginBottom: 4 }}>
               {getRoomDisplayName(unlockingItem.meta?.title || unlockingItem.name)}
             </h3>
-            <p style={{ fontSize: 13, color: "#888", marginBottom: 20 }}>by {unlockingItem.meta?.authorName || "the owner"}</p>
-            <p style={{ fontSize: 13, color: "#aaa", marginBottom: 16 }}>Enter the access code provided by the workspace owner to unlock and view the contents.</p>
+            <p className="text-[13px]" style={{ color: "#888", marginBottom: 20 }}>by {unlockingItem.meta?.authorName || "the owner"}</p>
+            <p className="text-[13px]" style={{ color: "#aaa", marginBottom: 16 }}>Enter the access code provided by the workspace owner to unlock and view the contents.</p>
 
             <input
               value={unlockPasscode}
@@ -1570,14 +1509,14 @@ function WorkspaceCard({
             />
 
             {unlockError && (
-              <p style={{ fontSize: 12, color: "#f87171", marginBottom: 12, fontWeight: 600 }}>{unlockError}</p>
+              <p className="text-[12px] font-semibold" style={{ color: "#f87171", marginBottom: 12 }}>{unlockError}</p>
             )}
 
-            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-              <button onClick={() => setUnlockingItem(null)} style={{ flex: 1, padding: "11px", background: "#222", border: "1px solid #333", borderRadius: 10, color: "#aaa", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            <div className="flex gap-[10px]" style={{ marginTop: 16 }}>
+              <button onClick={() => setUnlockingItem(null)} className="p-[11px] rounded-[10px] text-[13px] font-bold cursor-pointer" style={{ flex: 1, background: "#222", border: "1px solid #333", color: "#aaa" }}>
                 Cancel
               </button>
-              <button onClick={handleUnlockPrivateSubmit} style={{ flex: 1, padding: "11px", background: "linear-gradient(135deg,#ffffff,#cccccc)", border: "none", borderRadius: 10, color: "#000", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+              <button onClick={handleUnlockPrivateSubmit} className="p-[11px] border-none rounded-[10px] text-[13px] font-bold cursor-pointer" style={{ flex: 1, background: "linear-gradient(135deg, #ffffff, #cccccc)", color: "#000" }}>
                 🔓 Unlock
               </button>
             </div>
@@ -1586,13 +1525,13 @@ function WorkspaceCard({
       )}
 
       {messageTarget && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 20 }}>
-          <div style={{ background: "#0d0d18", border: "1px solid #1a1a2e", borderRadius: 20, width: "100%", maxWidth: 460, padding: 28, boxShadow: "0 24px 64px rgba(0,0,0,0.8)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-              <h2 style={{ margin: 0, color: "#fff", fontSize: 18, fontWeight: 900 }}>Message {messageTarget.name || messageTarget.email || "User"}</h2>
-              <button onClick={() => setMessageTarget(null)} style={{ background: "none", border: "none", color: "#666", cursor: "pointer" }}><X size={20}/></button>
+        <div className="flex items-center justify-center p-[20px]" style={{ position: "fixed", inset: 0, background: "rgba(0, 0, 0, 0.88)", zIndex: 9999 }}>
+          <div className="rounded-[20px] w-full p-[28px]" style={{ background: "#0d0d18", border: "1px solid #1a1a2e", maxWidth: 460, boxShadow: "0 24px 64px rgba(0, 0, 0, 0.8)" }}>
+            <div className="flex justify-between items-center" style={{ marginBottom: 18 }}>
+              <h2 className="text-[18px] font-black" style={{ margin: 0, color: "#fff" }}>Message {messageTarget.name || messageTarget.email || "User"}</h2>
+              <button onClick={() => setMessageTarget(null)} className="border-none cursor-pointer" style={{ background: "none", color: "#666" }}><X size={20}/></button>
             </div>
-            <div style={{ maxHeight: 260, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, marginBottom: 12, paddingRight: 4 }}>
+            <div className="flex flex-col gap-[8px]" style={{ maxHeight: 260, overflowY: "auto", marginBottom: 12, paddingRight: 4 }}>
               {threadMessages.filter((msg) => {
                 if (msg.deleted_for_everyone) return false;
                 if (msg.sender_id === user?.id && msg.deleted_for_sender) return false;
@@ -1603,20 +1542,20 @@ function WorkspaceCard({
                 const canEdit = mine && Date.now() - new Date(msg.created_at).getTime() < 5 * 60 * 1000;
                 return (
                   <div key={msg.id} style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "86%", background: mine ? "#ffffff22" : "#111", border: mine ? "1px solid #ffffff44" : "1px solid #222", borderRadius: 12, padding: 10 }}>
-                    {msg.content && <div style={{ color: "#e5e7eb", fontSize: 13, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{msg.content}</div>}
+                    {msg.content && <div className="text-[13px]" style={{ color: "#e5e7eb", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{msg.content}</div>}
                     {msg.media_url && (
                       msg.media_url.match(/\.(png|jpg|jpeg|gif|webp)$/i) || msg.media_url.startsWith("data:image") ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={msg.media_url} alt="" style={{ width: "100%", marginTop: 8, borderRadius: 8, border: "1px solid #222" }} />
+                        <img src={msg.media_url} alt="" className="w-full rounded-[8px]" style={{ marginTop: 8, border: "1px solid #222" }} />
                       ) : (
-                        <a href={msg.media_url} target="_blank" rel="noreferrer" style={{ display: "block", color: "#93c5fd", fontSize: 12, marginTop: 8 }}>Open media</a>
+                        <a href={msg.media_url} target="_blank" rel="noreferrer" className="text-[12px]" style={{ display: "block", color: "#93c5fd", marginTop: 8 }}>Open media</a>
                       )
                     )}
-                    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 6, color: "#666", fontSize: 10 }}>
+                    <div className="flex gap-[8px] justify-end text-[10px]" style={{ marginTop: 6, color: "#666" }}>
                       {msg.edited_at && <span>edited</span>}
-                      {canEdit && <button onClick={() => editMessage(msg)} style={{ background: "none", border: "none", color: "#ffffff", cursor: "pointer", fontSize: 10 }}>Edit</button>}
-                      <button onClick={() => deleteMessage(msg, "mine")} style={{ background: "none", border: "none", color: "#888", cursor: "pointer", fontSize: 10 }}>Delete mine</button>
-                      {mine && <button onClick={() => deleteMessage(msg, "both")} style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: 10 }}>Delete both</button>}
+                      {canEdit && <button onClick={() => editMessage(msg)} className="border-none cursor-pointer text-[10px]" style={{ background: "none", color: "#ffffff" }}>Edit</button>}
+                      <button onClick={() => deleteMessage(msg, "mine")} className="border-none cursor-pointer text-[10px]" style={{ background: "none", color: "#888" }}>Delete mine</button>
+                      {mine && <button onClick={() => deleteMessage(msg, "both")} className="border-none cursor-pointer text-[10px]" style={{ background: "none", color: "#f87171" }}>Delete both</button>}
                     </div>
                   </div>
                 );
@@ -1627,18 +1566,18 @@ function WorkspaceCard({
               onChange={(e) => setMessageText(e.target.value)}
               placeholder="Write a message..."
               rows={4}
-              style={{ width: "100%", background: "#111", border: "1px solid #333", borderRadius: 10, color: "#fff", fontSize: 13, padding: 12, outline: "none", resize: "none", boxSizing: "border-box", marginBottom: 10 }}
+              className="w-full rounded-[10px] text-[13px] p-[12px]" style={{ background: "#111", border: "1px solid #333", color: "#fff", outline: "none", resize: "none", boxSizing: "border-box", marginBottom: 10 }}
             />
             <input
               value={messageAttachment}
               onChange={(e) => setMessageAttachment(e.target.value)}
               placeholder="Optional media URL or uploaded media data"
-              style={{ width: "100%", background: "#111", border: "1px solid #333", borderRadius: 10, color: "#fff", fontSize: 13, padding: "10px 12px", outline: "none", boxSizing: "border-box" }}
+              className="w-full rounded-[10px] text-[13px] p-[10px]" style={{ background: "#111", border: "1px solid #333", color: "#fff", outline: "none", boxSizing: "border-box" }}
             />
-            <p style={{ color: "#777", fontSize: 11, margin: "8px 0 16px" }}>Messages can be edited for 5 minutes. Deleting can be from your side, their side, or both once the inbox view is added.</p>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setMessageTarget(null)} style={{ flex: 1, padding: "11px", background: "#222", border: "1px solid #333", borderRadius: 10, color: "#aaa", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
-              <button onClick={submitDirectMessage} style={{ flex: 1, padding: "11px", background: "linear-gradient(135deg,#ffffff,#cccccc)", border: "none", borderRadius: 10, color: "#000", fontWeight: 800, cursor: "pointer" }}>Send</button>
+            <p className="text-[11px]" style={{ color: "#777", margin: "8px 0 16px" }}>Messages can be edited for 5 minutes. Deleting can be from your side, their side, or both once the inbox view is added.</p>
+            <div className="flex gap-[10px]">
+              <button onClick={() => setMessageTarget(null)} className="p-[11px] rounded-[10px] font-bold cursor-pointer" style={{ flex: 1, background: "#222", border: "1px solid #333", color: "#aaa" }}>Cancel</button>
+              <button onClick={submitDirectMessage} className="p-[11px] border-none rounded-[10px] font-extrabold cursor-pointer" style={{ flex: 1, background: "linear-gradient(135deg, #ffffff, #cccccc)", color: "#000" }}>Send</button>
             </div>
           </div>
         </div>

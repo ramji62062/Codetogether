@@ -228,6 +228,8 @@ export default function RoomPage() {
 
   // Live Server state
   const [isLiveServerOn, setIsLiveServerOn] = useState(false);
+  const [liveServerUrl, setLiveServerUrl] = useState<string | null>(null);
+  const [liveServerPortState, setLiveServerPortState] = useState<number>(5500);
 
   useEffect(() => {
     if (publishOpen) {
@@ -787,10 +789,16 @@ export default function RoomPage() {
   }, [executeOpenProject, files.length, projectName]);
 
   const handleToggleLiveServer = useCallback(async () => {
-    // 1. Flush any pending edits to the workspace
-    saveRef.current?.();
+    // If WebContainer has exposed a server port, use its preview URL
+    if (liveServerUrl) {
+      window.open(liveServerUrl, "_blank");
+      setIsLiveServerOn(true);
+      addToast(`Live Server started on Port ${liveServerPortState} ⚡`, "success");
+      return;
+    }
 
-    // 2. Determine target HTML file (active file if html/htm, or find an index.html / first html in files)
+    // Fallback: static HTML preview
+    saveRef.current?.();
     const cleanActive = normalizePath(activeFile);
     let targetHtml = "";
     if (cleanActive.endsWith(".html") || cleanActive.endsWith(".htm")) {
@@ -803,8 +811,8 @@ export default function RoomPage() {
     const previewUrl = `${window.location.origin}/api/workspace/${roomId}/${targetHtml}`;
     window.open(previewUrl, "_blank");
     setIsLiveServerOn(true);
-    addToast(`Live Server started on Port 5500 (${targetHtml}) — Live Reload active! ⚡`, "success");
-  }, [activeFile, addToast, files, roomId]);
+    addToast(`Static preview opened (${targetHtml}) ⚡`, "success");
+  }, [activeFile, addToast, files, roomId, liveServerUrl, liveServerPortState]);
 
   const handleFileCreate = useCallback((file: FileItem) => {
     const nextFile = normalizeFileItem(file);
@@ -825,13 +833,18 @@ export default function RoomPage() {
     const normalized = syncedFiles.map(normalizeFileItem);
     setFiles((prev) => {
       const byPath = new Map(prev.map((file) => [normalizePath(file.path || file.name), file]));
-      normalized.forEach((file) => byPath.set(file.name, file));
+      normalized.forEach((file) => byPath.set(normalizePath(file.path || file.name), file));
       const next = Array.from(byPath.values()).sort((a, b) => normalizePath(a.path || a.name).localeCompare(normalizePath(b.path || b.name)));
       // Broadcast so peers see new/updated files from terminal
       roomChannelRef.current?.send({ type: "broadcast", event: "files-update", payload: { files: next, userId: currentUserId } });
       return next;
     });
   }, [currentUserId]);
+
+  const handleServerReady = useCallback((url: string, port: number) => {
+    setLiveServerUrl(url);
+    setLiveServerPortState(port);
+  }, []);
 
   const handleFileDelete = useCallback((name: string) => {
     const path = normalizePath(name);
@@ -1073,10 +1086,10 @@ export default function RoomPage() {
 
   if (loading) {
     return (
-      <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#1e1e1e", color: "#858585" }}>
+      <div className="flex items-center justify-center" style={{ height: "100vh", background: "#1e1e1e", color: "#858585" }}>
         <div style={{ textAlign: "center" }}>
-          <div style={{ width: 40, height: 40, border: "3px solid #333", borderTopColor: "#ffffff", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
-          <p style={{ fontSize: 14 }}>Loading room…</p>
+          <div className="rounded-[50px]" style={{ width: 40, height: 40, border: "3px solid #333", borderTopColor: "#ffffff", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
+          <p className="text-[14px]">Loading room…</p>
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       </div>
@@ -1085,14 +1098,14 @@ export default function RoomPage() {
 
   if (!room) {
     return (
-      <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#1e1e1e" }}>
-        <div style={{ color: "#f44747", fontSize: 14 }}>Room not found.</div>
+      <div className="flex items-center justify-center" style={{ height: "100vh", background: "#1e1e1e" }}>
+        <div className="text-[14px]" style={{ color: "#f44747" }}>Room not found.</div>
       </div>
     );
   }
 
   return (
-    <div className="room-layout" style={{ height: "100vh", display: "flex", flexDirection: "column", background: "var(--vscode-bg)", overflow: "hidden" }}>
+    <div className="room-layout flex flex-col overflow-hidden" style={{ height: "100vh", background: "var(--vscode-bg)" }}>
       <RoomTopbar
         roomId={room.id} roomCode={room.room_code} roomName={roomName} onRoomNameChange={setRoomName}
         language={language} onLanguageChange={handleLanguageChange} participants={members}
@@ -1110,7 +1123,7 @@ export default function RoomPage() {
         onTerminalToggle={() => setTerminalOpen((p) => !p)}
       />
 
-      <div style={{ flex: 1, display: "flex", overflow: "hidden", minHeight: 0, position: "relative" }}>
+      <div className="flex overflow-hidden relative" style={{ flex: 1, minHeight: 0 }}>
         <ActivityBar 
           activePanel={activePanel} 
           onPanelChange={setActivePanel} 
@@ -1187,7 +1200,7 @@ export default function RoomPage() {
           </div>
         </div>
 
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, position: "relative", overflow: "hidden" }}>
+        <div className="flex flex-col relative overflow-hidden" style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
           {/* Editor Tabs */}
           <EditorTabs
             tabs={openTabs.map((name) => ({ name, modified: modifiedFiles.has(name) }))}
@@ -1201,7 +1214,7 @@ export default function RoomPage() {
           <BreadcrumbBar activeFile={activeFile} />
 
           {/* Editor */}
-          <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }}>
+          <div className="flex flex-col overflow-hidden relative" style={{ flex: 1, minHeight: 0 }}>
             <Editor
               roomId={room.id} language={currentLang} code={currentCode} onCodeChange={handleCodeChange}
               currentUserId={currentUserId} wordWrap={wordWrap}
@@ -1214,7 +1227,7 @@ export default function RoomPage() {
 
           {/* Terminal Panel */}
           {terminalOpen && (
-            <div style={{ position: "relative", zIndex: 5, flexShrink: 0 }}>
+            <div className="relative" style={{ zIndex: 5, flexShrink: 0 }}>
               <TerminalPanel
                 onClose={() => setTerminalOpen(false)}
                 roomId={room.id} codeRef={codeRef}
@@ -1223,6 +1236,7 @@ export default function RoomPage() {
                 terminalAction={terminalAction}
                 files={files}
                 onFilesSync={handleTerminalFilesSync}
+                onServerReady={handleServerReady}
                 onOutputLog={(chunk) => setTerminalLogs((prev) => [...prev.slice(-120), chunk])}
               />
             </div>
@@ -1237,46 +1251,46 @@ export default function RoomPage() {
         onSaveRetry={() => { setSyncStatus("syncing"); void flushFilesSave(); }}
         isLiveServerOn={isLiveServerOn}
         onToggleLiveServer={handleToggleLiveServer}
-        liveServerPort={5500}
+        liveServerPort={liveServerPortState}
       />
 
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
       {/* Publish to Library Modal */}
       {publishOpen && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 99999 }}>
-          <div style={{ background: "#1e1e1e", border: "1px solid #333", borderRadius: 16, padding: 24, width: "100%", maxWidth: 420, display: "flex", flexDirection: "column", gap: 16, boxShadow: "0 24px 64px rgba(0,0,0,0.8)", fontFamily: "Inter, sans-serif" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #2d2d2d", paddingBottom: 10 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#fff", display: "flex", alignItems: "center", gap: 6 }}>
+        <div className="flex items-center justify-center" style={{ position: "fixed", inset: 0, background: "rgba(0, 0, 0, 0.8)", zIndex: 99999 }}>
+          <div className="rounded-[16px] p-[24px] w-full flex flex-col gap-[16px]" style={{ background: "#1e1e1e", border: "1px solid #333", maxWidth: 420, boxShadow: "0 24px 64px rgba(0, 0, 0, 0.8)", fontFamily: "Inter, sans-serif" }}>
+            <div className="flex justify-between items-center" style={{ borderBottom: "1px solid #2d2d2d", paddingBottom: 10 }}>
+              <h3 className="text-[16px] font-extrabold flex items-center gap-[6px]" style={{ margin: 0, color: "#fff" }}>
                 📚 Publish to Library
               </h3>
-              <button onClick={() => setPublishOpen(false)} style={{ background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: 18 }}>✕</button>
+              <button onClick={() => setPublishOpen(false)} className="border-none cursor-pointer text-[18px]" style={{ background: "none", color: "#666" }}>✕</button>
             </div>
             
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="flex flex-col gap-[12px]">
               <div>
-                <label style={{ fontSize: 10, color: "#888", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: 5 }}>Project Title</label>
+                <label className="text-[10px] font-bold" style={{ color: "#888", textTransform: "uppercase", display: "block", marginBottom: 5 }}>Project Title</label>
                 <input
                   value={pubTitle}
                   onChange={(e) => setPubTitle(e.target.value)}
                   placeholder="e.g. Next.js Starter Kit"
-                  style={{ width: "100%", background: "#111", border: "1px solid #333", borderRadius: 8, color: "#fff", fontSize: 13, padding: "8px 12px", outline: "none", boxSizing: "border-box" }}
+                  className="w-full rounded-[8px] text-[13px] p-[8px]" style={{ background: "#111", border: "1px solid #333", color: "#fff", outline: "none", boxSizing: "border-box" }}
                 />
               </div>
 
               <div>
-                <label style={{ fontSize: 10, color: "#888", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: 5 }}>Author Name</label>
+                <label className="text-[10px] font-bold" style={{ color: "#888", textTransform: "uppercase", display: "block", marginBottom: 5 }}>Author Name</label>
                 <input
                   value={pubAuthor}
                   onChange={(e) => setPubAuthor(e.target.value)}
                   placeholder="e.g. John Doe"
-                  style={{ width: "100%", background: "#111", border: "1px solid #333", borderRadius: 8, color: "#fff", fontSize: 13, padding: "8px 12px", outline: "none", boxSizing: "border-box" }}
+                  className="w-full rounded-[8px] text-[13px] p-[8px]" style={{ background: "#111", border: "1px solid #333", color: "#fff", outline: "none", boxSizing: "border-box" }}
                 />
               </div>
 
               <div>
-                <label style={{ fontSize: 10, color: "#888", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Publish Destination</label>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <label className="text-[10px] font-bold" style={{ color: "#888", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Publish Destination</label>
+                <div className="gap-[8px]" style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
                   <button
                     onClick={() => setPubVisibility("public")}
                     style={{ padding: "10px", border: pubVisibility === "public" ? "1px solid #10b981" : "1px solid #333", borderRadius: 8, background: pubVisibility === "public" ? "#10b98120" : "#111", color: pubVisibility === "public" ? "#34d399" : "#aaa", cursor: "pointer", fontWeight: 800, fontSize: 12 }}
@@ -1294,44 +1308,44 @@ export default function RoomPage() {
 
               {pubVisibility === "private" && (
                 <div>
-                  <label style={{ fontSize: 10, color: "#f87171", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: 5 }}>Private Access Code</label>
+                  <label className="text-[10px] font-bold" style={{ color: "#f87171", textTransform: "uppercase", display: "block", marginBottom: 5 }}>Private Access Code</label>
                   <input
                     value={pubAccessCode}
                     onChange={(e) => setPubAccessCode(e.target.value)}
                     placeholder="Required for non-followers"
-                    style={{ width: "100%", background: "#111", border: "1px solid #f43f5e55", borderRadius: 8, color: "#fff", fontSize: 13, padding: "8px 12px", outline: "none", boxSizing: "border-box" }}
+                    className="w-full rounded-[8px] text-[13px] p-[8px]" style={{ background: "#111", border: "1px solid #f43f5e55", color: "#fff", outline: "none", boxSizing: "border-box" }}
                   />
-                  <p style={{ color: "#777", fontSize: 11, margin: "6px 0 0" }}>Followers can access private library items from your profile; others need this passcode.</p>
+                  <p className="text-[11px]" style={{ color: "#777", margin: "6px 0 0" }}>Followers can access private library items from your profile; others need this passcode.</p>
                 </div>
               )}
 
               <div>
-                <label style={{ fontSize: 10, color: "#888", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: 5 }}>Category</label>
+                <label className="text-[10px] font-bold" style={{ color: "#888", textTransform: "uppercase", display: "block", marginBottom: 5 }}>Category</label>
                 <select
                   value={pubCat}
                   onChange={(e) => setPubCat(e.target.value)}
-                  style={{ width: "100%", background: "#111", border: "1px solid #333", borderRadius: 8, color: "#ccc", fontSize: 13, padding: "8px 12px", outline: "none", cursor: "pointer" }}
+                  className="w-full rounded-[8px] text-[13px] p-[8px] cursor-pointer" style={{ background: "#111", border: "1px solid #333", color: "#ccc", outline: "none" }}
                 >
                   {["Tutorials", "Algorithms", "Templates", "Web Pages", "Others"].map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
 
               <div>
-                <label style={{ fontSize: 10, color: "#888", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: 5 }}>Description</label>
+                <label className="text-[10px] font-bold" style={{ color: "#888", textTransform: "uppercase", display: "block", marginBottom: 5 }}>Description</label>
                 <textarea
                   value={pubDesc}
                   onChange={(e) => setPubDesc(e.target.value)}
                   placeholder="Describe what this project does..."
                   rows={3}
-                  style={{ width: "100%", background: "#111", border: "1px solid #333", borderRadius: 8, color: "#fff", fontSize: 13, padding: "8px 12px", outline: "none", boxSizing: "border-box", resize: "none" }}
+                  className="w-full rounded-[8px] text-[13px] p-[8px]" style={{ background: "#111", border: "1px solid #333", color: "#fff", outline: "none", boxSizing: "border-box", resize: "none" }}
                 />
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+            <div className="flex gap-[10px]" style={{ marginTop: 6 }}>
               <button
                 onClick={() => setPublishOpen(false)}
-                style={{ flex: 1, padding: "10px", border: "1px solid #333", borderRadius: 8, background: "transparent", color: "#ccc", cursor: "pointer", fontWeight: 600, fontSize: 13 }}
+                className="p-[10px] rounded-[8px] bg-transparent cursor-pointer font-semibold text-[13px]" style={{ flex: 1, border: "1px solid #333", color: "#ccc" }}
               >
                 Cancel
               </button>
@@ -1349,21 +1363,14 @@ export default function RoomPage() {
 
       {/* ── Nickname Prompt Modal ── */}
       {nicknameModalOpen && (
-        <div style={{
-          position: "fixed", inset: 0, zIndex: 999999, background: "rgba(0,0,0,0.85)",
-          backdropFilter: "blur(12px)", display: "grid", placeItems: "center", padding: 20
-        }}>
-          <div style={{
-            width: "100%", maxWidth: 400, background: "#121218", border: "1px solid rgba(124, 58, 237, 0.45)",
-            borderRadius: 18, padding: 24, boxShadow: "0 20px 50px rgba(0,0,0,0.9), 0 0 30px rgba(124,58,237,0.3)",
-            animation: "pcp-fadeIn 0.25s ease-out"
-          }}>
+        <div className="p-[20px]" style={{ position: "fixed", inset: 0, zIndex: 999999, background: "rgba(0, 0, 0, 0.85)", backdropFilter: "blur(12px)", display: "grid", placeItems: "center" }}>
+          <div className="w-full rounded-[18px] p-[24px]" style={{ maxWidth: 400, background: "#121218", border: "1px solid rgba(124, 58, 237, 0.45)", boxShadow: "0 20px 50px rgba(0, 0, 0, 0.9), 0 0 30px rgba(124, 58, 237, 0.3)", animation: "pcp-fadeIn 0.25s ease-out" }}>
             <div style={{ textAlign: "center", marginBottom: 20 }}>
-              <div style={{ width: 52, height: 52, borderRadius: "50%", background: "linear-gradient(135deg,#ffffff,#cccccc)", display: "grid", placeItems: "center", margin: "0 auto 12px", color: "#000", fontSize: 24, fontWeight: 800, boxShadow: "0 0 20px rgba(255,255,255,0.35)" }}>
+              <div className="rounded-[50px] text-[24px] font-extrabold" style={{ width: 52, height: 52, background: "linear-gradient(135deg, #ffffff, #cccccc)", display: "grid", placeItems: "center", margin: "0 auto 12px", color: "#000", boxShadow: "0 0 20px rgba(255, 255, 255, 0.35)" }}>
                 {tempNickname.trim() ? tempNickname.trim().charAt(0).toUpperCase() : "👋"}
               </div>
-              <h2 style={{ margin: 0, fontSize: 20, color: "#fff", fontWeight: 800, letterSpacing: "-0.01em" }}>Enter Your Nickname</h2>
-              <p style={{ margin: "6px 0 0", fontSize: 13, color: "#94a3b8", lineHeight: 1.4 }}>
+              <h2 className="text-[20px] font-extrabold" style={{ margin: 0, color: "#fff", letterSpacing: "-0.01em" }}>Enter Your Nickname</h2>
+              <p className="text-[13px]" style={{ margin: "6px 0 0", color: "#94a3b8", lineHeight: 1.4 }}>
                 Choose a nickname to display to other users in this room, chat, and call.
               </p>
             </div>
@@ -1381,22 +1388,22 @@ export default function RoomPage() {
                   void roomChannelRef.current.track({ userId: currentUserId, name: nameToUse, avatar: userAvatar });
                 }
               }}
-              style={{ display: "flex", flexDirection: "column", gap: 14 }}
+              className="flex flex-col gap-[14px]"
             >
               <div>
-                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#ffffff", textTransform: "uppercase", marginBottom: 6 }}>NICKNAME / ALIAS</label>
+                <label className="text-[11px] font-bold" style={{ display: "block", color: "#ffffff", textTransform: "uppercase", marginBottom: 6 }}>NICKNAME / ALIAS</label>
                 <input
                   autoFocus
                   value={tempNickname}
                   onChange={(e) => setTempNickname(e.target.value)}
                   placeholder="e.g. Alex, CodeGuru, Ramji"
-                  style={{ width: "100%", background: "#1a1a24", border: "1px solid #ffffff66", borderRadius: 8, color: "#fff", fontSize: 14, padding: "10px 12px", outline: "none", boxSizing: "border-box" }}
+                  className="w-full rounded-[8px] text-[14px] p-[10px]" style={{ background: "#1a1a24", border: "1px solid #ffffff66", color: "#fff", outline: "none", boxSizing: "border-box" }}
                 />
               </div>
 
               <button
                 type="submit"
-                style={{ width: "100%", padding: 12, border: "none", borderRadius: 8, background: "linear-gradient(135deg,#ffffff,#cccccc)", color: "#000", cursor: "pointer", fontWeight: 800, fontSize: 14, boxShadow: "0 4px 16px rgba(255,255,255,0.35)" }}
+                className="w-full p-[12px] border-none rounded-[8px] cursor-pointer font-extrabold text-[14px]" style={{ background: "linear-gradient(135deg, #ffffff, #cccccc)", color: "#000", boxShadow: "0 4px 16px rgba(255, 255, 255, 0.35)" }}
               >
                 Join Room as &ldquo;{tempNickname.trim() || "Guest"}&rdquo;
               </button>

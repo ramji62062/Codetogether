@@ -10,8 +10,16 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
+    if (error?.message?.includes("chrome:") || error?.message?.includes("window message")) {
+      reset();
+      return;
+    }
     console.error("App error:", error);
-  }, [error]);
+  }, [error, reset]);
+
+  if (error?.message?.includes("chrome:") || error?.message?.includes("window message")) {
+    return null;
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#0a0a0a] font-inter text-white">
