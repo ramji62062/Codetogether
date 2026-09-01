@@ -1064,9 +1064,11 @@ export default function ParticipantsCallPanel({
 
   // ── Tiles for video grid ──
   const tiles = useMemo(() => {
-    const localPreviewStream = screenTrackRef.current
-      ? new MediaStream([...Array.from(localStreamRef.current?.getAudioTracks() || []), screenTrackRef.current])
-      : localStreamRef.current || undefined;
+    const tracks = [];
+    if (localStreamRef.current) tracks.push(...localStreamRef.current.getAudioTracks());
+    if (cameraTrackRef.current) tracks.push(cameraTrackRef.current);
+    if (screenTrackRef.current) tracks.push(screenTrackRef.current);
+    const localPreviewStream = tracks.length > 0 ? new MediaStream(tracks) : undefined;
     const localTile: ParticipantCallState | null = joined ? {
       socketId: "local",
       userId: currentUserId,
