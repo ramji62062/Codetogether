@@ -8,40 +8,7 @@ import {
 } from "lucide-react";
 
 
-// --- FALLBACK MOCK DATA ---
-const MOCK_POSTS = [
-  {
-    id: "mock1",
-    author: { name: "Ramji Kumar", handle: "@ramji_k", avatar_url: null, is_public: true },
-    content_text: "Just finished building the new WebRTC floating UI layout! It supports multi-track video processing natively inside the browser using canvas compositing. 🚀",
-    media_url: "https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&q=80&w=800",
-    media_type: "image",
-    likes: Array(124).fill({}),
-    comments: Array(12).fill({ author: { name: "User" }, content: "Awesome work!" }),
-    created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
-  },
-  {
-    id: "mock2",
-    author: { name: "Sarah Drasner", handle: "@sarah_edo", avatar_url: null, is_public: true },
-    content_text: "Teaching a live masterclass on Next.js 14 App Router and Server Actions. Jump into the Live Workspace now and let's code together!",
-    media_url: null,
-    media_type: "workspace",
-    workspaceId: "ws_next14",
-    likes: Array(890).fill({}),
-    comments: Array(45).fill({ author: { name: "Student" }, content: "Can't wait!" }),
-    created_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()
-  },
-  {
-    id: "mock3",
-    author: { name: "DevTutor", handle: "@dev_tutor", avatar_url: null, is_public: false },
-    content_text: "Quick tip: Use Tailwind's 'dark:' variant explicitly across all your components to prepare for multi-theme architecture.",
-    media_url: null,
-    media_type: "text",
-    likes: Array(56).fill({}),
-    comments: Array(3).fill({ author: { name: "User" }, content: "Thanks for the tip!" }),
-    created_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
-  }
-];
+
 
 const MOCK_LIVE_ROOMS = [
   { id: "room1", title: "Advanced Node.js Scaling", host: "Ramji Kumar", viewers: 145, type: "masterclass", tags: ["Node.js", "Backend"] },
@@ -92,7 +59,7 @@ export default function CommunityFeed({ currentUserId }: { currentUserId: string
     const { data, error } = await supabase
       .from("comments")
       .insert({ post_id: postId, author_id: currentUserId, content: text })
-      .select('*, author:users!comments_author_id_fkey(name, avatar_url)')
+      .select('*, author:users(name, avatar_url)')
       .single();
 
     if (!error && data) {
@@ -119,13 +86,13 @@ export default function CommunityFeed({ currentUserId }: { currentUserId: string
         .from("posts")
         .select(`
           id, content_text, media_url, media_type, created_at, author_id,
-          author:users!posts_author_id_fkey(id, name, avatar_url, is_public),
+          author:users(id, name, avatar_url, is_public),
           likes(id, user_id),
-          comments(id, content, created_at, author:users!comments_author_id_fkey(name, avatar_url))
+          comments(id, content, created_at, author:users(name, avatar_url))
         `)
         .order("created_at", { ascending: false });
 
-      if (data) setPosts(data);
+      if (error) { console.error("Fetch posts error:", error); } else if (data) { setPosts(data); }
     } catch (err) {
       console.error("Error fetching posts:", err);
     }
@@ -145,7 +112,7 @@ export default function CommunityFeed({ currentUserId }: { currentUserId: string
       setNewPostContent("");
       fetchPosts(); // Refresh feed
     } else {
-      alert("Error creating post. Ensure you have run the social-schema.sql migration and created a profile.");
+      alert("Database Error: " + (error?.message || "Unknown error creating post. Check Supabase RLS.")); console.error("Post error:", error);
     }
     setIsPosting(false);
   };
@@ -247,7 +214,9 @@ export default function CommunityFeed({ currentUserId }: { currentUserId: string
           {/* Posts Feed */}
           {loading ? (
             <div className="py-10 text-center text-gray-500">Loading feed...</div>
-          ) : (posts.length === 0 ? MOCK_POSTS : posts).map(post => {
+          ) : posts.length === 0 ? (
+<div className="py-10 text-center text-gray-500 bg-white dark:bg-[#151515] rounded-xl border border-gray-200 dark:border-white/10">No posts yet. Be the first to share something!</div>
+) : posts.map(post => {
               const author = Array.isArray(post.author) ? post.author[0] : post.author;
               const hasLiked = post.likes?.some((l: any) => l.user_id === currentUserId);
               
