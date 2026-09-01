@@ -149,7 +149,9 @@ async function readProjectDirectory(rootHandle: FileSystemDirectoryHandleLike) {
     }
   }
 
-  await walk(rootHandle);
+  const rootName = rootHandle.name || "project";
+  files.push({ name: rootName, path: rootName, content: "", language: "folder", isFolder: true });
+  await walk(rootHandle, rootName);
   return { files: files.map(normalizeFileItem), handles };
 }
 
