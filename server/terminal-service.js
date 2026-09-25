@@ -88,43 +88,78 @@ async function checkDockerReady() {
 }
 
 function syncFilesToWorkspace(roomId, files, reset = false) {
-  const workspacePath = getWorkspacePath(roomId);
-  if (reset && fs.existsSync(workspacePath)) {
-    try {
-      const entries = fs.readdirSync(workspacePath);
-      for (const entry of entries) {
-        if (entry === ".git") continue;
-        fs.rmSync(resolve(workspacePath, entry), { recursive: true, force: true });
+  try {
+    const workspacePath = getWorkspacePath(roomId);
+    if (reset && existsSync(workspacePath)) {
+      try {
+        const entries = readdirSync(workspacePath);
+        for (const entry of entries) {
+          if (entry === ".git") continue;
+          rmSync(resolve(workspacePath, entry), { recursive: true, force: true });
+        }
+      } catch {}
+    }
+    mkdirSync(workspacePath, { recursive: true });
+
+    if (!Array.isArray(files)) return;
+
+    let wrote = false;
+    for (const file of files) {
+      if (!file) continue;
+      const relPath = String(file.path || file.name || "").replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+      if (!relPath || relPath.includes("..")) continue;
+      const target = resolve(workspacePath, relPath);
+      if (!target.startsWith(workspacePath + sep) && target !== workspacePath) continue;
+
+      const isDirectory = Boolean(
+        file.isFolder ||
+        file.type === "folder" ||
+        file.type === "directory" ||
+        file.language === "folder" ||
+        Array.isArray(file.children) ||
+        relPath.endsWith("/")
+      );
+
+      try {
+        if (isDirectory) {
+          if (existsSync(target)) {
+            const st = statSync(target);
+            if (!st.isDirectory()) {
+              rmSync(target, { force: true });
+              mkdirSync(target, { recursive: true });
+            }
+          } else {
+            mkdirSync(target, { recursive: true });
+          }
+          continue;
+        }
+
+        // Target is a file: ensure it does not attempt to overwrite a folder with a file
+        if (existsSync(target)) {
+          const st = statSync(target);
+          if (st.isDirectory()) {
+            continue; // Skip writing file data to a directory path
+          }
+        }
+
+        mkdirSync(dirname(target), { recursive: true });
+
+        if (typeof file.content === "string" && file.content.startsWith("data:") && file.content.includes(";base64,")) {
+          const base64Data = file.content.split(";base64,").pop();
+          writeFileSync(target, Buffer.from(base64Data, "base64"));
+        } else {
+          writeFileSync(target, file.content ?? "", "utf8");
+        }
+        wrote = true;
+      } catch (fileErr) {
+        console.warn(`[terminal] Warning syncing file ${relPath}:`, fileErr.message);
       }
-    } catch {}
-  }
-  mkdirSync(workspacePath, { recursive: true });
-
-  if (!Array.isArray(files)) return;
-
-  let wrote = false;
-  for (const file of files) {
-    const relPath = String(file.path || file.name || "").replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
-    if (!relPath || relPath.includes("..")) continue;
-    const target = resolve(workspacePath, relPath);
-    if (!target.startsWith(workspacePath + sep) && target !== workspacePath) continue;
-
-    if (file.isFolder) {
-      mkdirSync(target, { recursive: true });
-      continue;
     }
-    mkdirSync(dirname(target), { recursive: true });
 
-    if (typeof file.content === "string" && file.content.startsWith("data:") && file.content.includes(";base64,")) {
-      const base64Data = file.content.split(";base64,").pop();
-      writeFileSync(target, Buffer.from(base64Data, "base64"));
-    } else {
-      writeFileSync(target, file.content || "", "utf8");
-    }
-    wrote = true;
+    if (wrote) lastEditorSyncMs.set(roomId, Date.now());
+  } catch (err) {
+    console.error(`[terminal] syncFilesToWorkspace error for room ${roomId}:`, err.message);
   }
-
-  if (wrote) lastEditorSyncMs.set(roomId, Date.now());
 }
 
 async function ensureRoomContainer(roomId, files, portBinding) {
@@ -361,7 +396,7 @@ function collectWorkspaceFiles(roomId) {
         try {
           const st = statSync(full);
           if (st.size > MAX_SYNC_FILE_SIZE) continue;
-          out.push({ name: nextRel, path: nextRel, content: readFileSync(full, "utf8"), language: getLangFromPath(nextRel) });
+          out.push({ name: nextRel, path: nextRel, content: readFileSync(full, "utf8"), language: getLangFromPath(nextRel), isFolder: false });
         } catch {}
       }
     }

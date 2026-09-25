@@ -403,6 +403,11 @@ export async function GET(_req: Request, ctx: Ctx) {
   if (!/^[a-zA-Z0-9_-]{4,64}$/.test(roomId || "")) return notFound("Invalid room", 400);
   const rel = (path || []).map((s) => decodeURIComponent(s)).join("/");
 
+  // Special internal endpoints (__files, __live_ping) must ALWAYS be served directly!
+  if (rel === "__files" || rel === "__live_ping") {
+    return serveFile(roomId, rel);
+  }
+
   // 1. If an active server is running on a port for this room, redirect directly to that port!
   const activeServer = (global as any).__activeRoomServers?.get(roomId);
   if (activeServer && activeServer.url) {
@@ -426,13 +431,31 @@ export async function POST(req: Request, ctx: Ctx) {
       mkdirSync(base, { recursive: true });
 
       for (const file of files) {
+        if (!file) continue;
         const relPath = String(file.path || file.name || "").replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
         if (!relPath || relPath.includes("..")) continue;
         const target = join(base, relPath);
-        if (file.isFolder || file.language === "folder") {
-          try { mkdirSync(target, { recursive: true }); } catch {}
+        const isDirectory = Boolean(
+          file.isFolder ||
+          file.type === "folder" ||
+          file.type === "directory" ||
+          file.language === "folder" ||
+          Array.isArray(file.children) ||
+          relPath.endsWith("/")
+        );
+
+        if (isDirectory) {
+          try {
+            if (existsSync(target) && !statSync(target).isDirectory()) {
+              rmSync(target, { force: true });
+            }
+            mkdirSync(target, { recursive: true });
+          } catch {}
         } else {
           try {
+            if (existsSync(target) && statSync(target).isDirectory()) {
+              continue; // Do not overwrite directory with file!
+            }
             mkdirSync(normalize(join(target, "..")), { recursive: true });
             writeFileSync(target, String(file.content || ""), "utf8");
           } catch {}

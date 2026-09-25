@@ -189,7 +189,11 @@ async function spawnLocalPty(roomId, terminalId, cols, rows, files) {
   const key = sessionKey(roomId, terminalId);
   const workspacePath = join(process.cwd(), "temp_workspaces", roomId);
   try { mkdirSync(workspacePath, { recursive: true }); } catch {}
-  syncFilesToWorkspace(roomId, files);
+  try {
+    syncFilesToWorkspace(roomId, files);
+  } catch (syncErr) {
+    console.warn(`[pty] Non-fatal initial workspace sync error:`, syncErr.message);
+  }
 
   const shell = detectValidShell();
   const args = [];
@@ -706,7 +710,11 @@ function handleConnection(ws, req) {
               files: msg.files || [],
             });
           }
-          syncFilesToWorkspace(msg.roomId, msg.files || []);
+          try {
+            syncFilesToWorkspace(msg.roomId, msg.files || []);
+          } catch (syncErr) {
+            console.warn(`[pty] Non-fatal sync-workspace error:`, syncErr.message);
+          }
           break;
 
         case "get-files": {

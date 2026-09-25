@@ -71,7 +71,14 @@ function normalizePath(path: string) {
 
 function normalizeFileItem(file: FileItem): FileItem {
   const path = normalizePath(file.path || file.name);
-  return { ...file, name: path, path };
+  const isFolder = Boolean(file.isFolder || file.language === "folder");
+  return {
+    ...file,
+    name: path,
+    path,
+    isFolder: isFolder || undefined,
+    language: isFolder ? "folder" : (file.language || getLangFromPath(path)),
+  };
 }
 
 function isPathInside(path: string, parent: string) {

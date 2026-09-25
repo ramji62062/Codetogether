@@ -206,6 +206,22 @@ export default function TerminalPanel({
   const handleSyncFiles = async () => {
     setIsSyncing(true);
 
+    const safeFiles = (filesRef.current || []).map((f) => ({
+      name: f.name || f.path,
+      path: f.path || f.name,
+      content: f.content || "",
+      isFolder: Boolean(f.isFolder || f.language === "folder"),
+    }));
+
+    // 1. Push editor files to workspace disk via API first
+    try {
+      await fetch(`/api/workspace/${roomIdRef.current}/__save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ files: safeFiles }),
+      });
+    } catch {}
+
     const rt = runtimesRef.current.get(activeTabId);
     if (rt?.ws && rt.ws.readyState === WebSocket.OPEN) {
       try {
@@ -213,12 +229,7 @@ export default function TerminalPanel({
         rt.ws.send(JSON.stringify({
           type: "sync-workspace",
           roomId: roomIdRef.current,
-          files: (filesRef.current || []).map((f) => ({
-            name: f.name || f.path,
-            path: f.path || f.name,
-            content: f.content || "",
-            isFolder: Boolean(f.isFolder),
-          })),
+          files: safeFiles,
         }));
         // Pull latest files from workspace terminal
         rt.ws.send(JSON.stringify({
