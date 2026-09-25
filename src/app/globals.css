@@ -651,3 +651,96 @@ html {
   box-shadow: 0 12px 24px -10px rgba(255,255,255,0.15);
   border-color: rgba(255,255,255,0.3) !important;
 }
+
+/* Rich Text Teacher Notes Editor Styles */
+.rich-editor h1 {
+  font-size: 24px;
+  font-weight: 800;
+  margin: 16px 0 8px;
+  color: #ffffff;
+  line-height: 1.3;
+}
+.rich-editor h2 {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 14px 0 6px;
+  color: #ffffff;
+  line-height: 1.3;
+}
+.rich-editor h3 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 12px 0 4px;
+  color: #ffffff;
+  line-height: 1.3;
+}
+.rich-editor b, .rich-editor strong {
+  font-weight: 700;
+  color: #ffffff;
+}
+.rich-editor i, .rich-editor em {
+  font-style: italic;
+}
+.rich-editor u {
+  text-decoration: underline;
+}
+.rich-editor strike, .rich-editor s, .rich-editor del {
+  text-decoration: line-through;
+  color: #94a3b8;
+}
+.rich-editor ul {
+  list-style-type: disc !important;
+  margin: 8px 0;
+  padding-left: 24px !important;
+}
+.rich-editor ol {
+  list-style-type: decimal !important;
+  margin: 8px 0;
+  padding-left: 24px !important;
+}
+.rich-editor li {
+  margin: 4px 0;
+}
+.rich-editor blockquote {
+  border-left: 3px solid #6366f1;
+  padding-left: 12px;
+  margin: 10px 0;
+  color: #94a3b8;
+  font-style: italic;
+}
+.rich-editor pre {
+  background: #0d0d12;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-family: monospace;
+  font-size: 12px;
+  color: #cbd5e1;
+  margin: 10px 0;
+}
+.rich-editor code {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 12px;
+  color: #f8fafc;
+}
+.rich-editor a {
+  color: #60a5fa;
+  text-decoration: underline;
+}
+.rich-editor img {
+  max-width: 100%;
+  border-radius: 8px;
+  margin: 8px 0;
+  display: block;
+}
+.rich-editor:empty:before {
+  content: attr(data-placeholder);
+  color: #64748b;
+  pointer-events: none;
+  font-style: normal;
+}
+

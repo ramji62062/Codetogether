@@ -99,6 +99,8 @@ PKG_EOF
 
 echo "📦 Installing agent dependencies (ws)..."
 npm install --no-audit --no-fund --silent >/dev/null 2>&1 || npm install ws --no-audit --no-fund --silent >/dev/null 2>&1 || true
+chmod 755 "$HOME/.codetogether/node_modules/node-pty/prebuilds"/*/spawn-helper 2>/dev/null || true
+chmod 755 "$HOME/.codetogether/node_modules/node-pty/build/Release/spawn-helper" 2>/dev/null || true
 
 # Register Protocol Launcher
 if [ "$(uname)" = "Darwin" ]; then
@@ -156,6 +158,41 @@ LINUX_EOF
   update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
 fi
 
+# Install macOS LaunchAgent for lifetime background persistence
+if [ "$(uname)" = "Darwin" ]; then
+  PLIST_PATH="$HOME/Library/LaunchAgents/com.codetogether.agent.plist"
+  mkdir -p "$HOME/Library/LaunchAgents"
+  NODE_BIN=$(which node || echo "/opt/homebrew/bin/node")
+  cat << PLIST_EOF > "$PLIST_PATH"
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.codetogether.agent</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$NODE_BIN</string>
+        <string>$HOME/.codetogether/agent.js</string>
+        <string>--server=${baseUrl}</string>
+        <string>--room=${roomId}</string>
+        <string>--pair-token=${pairToken}</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>$HOME/.codetogether/agent.log</string>
+    <key>StandardErrorPath</key>
+    <string>$HOME/.codetogether/agent.log</string>
+</dict>
+</plist>
+PLIST_EOF
+  launchctl unload "$PLIST_PATH" 2>/dev/null || true
+  launchctl load -w "$PLIST_PATH" 2>/dev/null || true
+fi
+
 # Kill any existing agent to prevent duplicate processes
 pkill -f "$HOME/.codetogether/agent.js" 2>/dev/null || true
 sleep 0.5
@@ -163,8 +200,8 @@ sleep 0.5
 # Launch in background with server and room parameters
 nohup node "$HOME/.codetogether/agent.js" --server="${baseUrl}" --room="${roomId}" --pair-token="${pairToken}" > "$HOME/.codetogether/agent.log" 2>&1 &
 
-echo "✅ CodeTogether Local Terminal Companion installed and running!"
-echo "✨ Your local terminal is now connected to CodeTogether!"
+echo "✅ CodeTogether Local Terminal Companion installed and running permanently!"
+echo "✨ Your local terminal is now connected to CodeTogether for life!"
 `;
 
   return new NextResponse(script, {

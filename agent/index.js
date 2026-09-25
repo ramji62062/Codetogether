@@ -304,15 +304,50 @@ function deleteWorkspaceFile(relPath) {
   return { ok: true };
 }
 
+function fixSpawnHelperPermissions() {
+  try {
+    const candidateDirs = [
+      path.join(__dirname, "node_modules", "node-pty"),
+      path.join(os.homedir(), ".codetogether", "node_modules", "node-pty"),
+      path.join(process.cwd(), "node_modules", "node-pty"),
+    ];
+    for (const base of candidateDirs) {
+      const candidates = [
+        path.join(base, "prebuilds", "darwin-arm64", "spawn-helper"),
+        path.join(base, "prebuilds", "darwin-x64", "spawn-helper"),
+        path.join(base, "build", "Release", "spawn-helper"),
+      ];
+      for (const p of candidates) {
+        if (fs.existsSync(p)) {
+          try { fs.chmodSync(p, 0o755); } catch {}
+        }
+      }
+    }
+  } catch {}
+}
+fixSpawnHelperPermissions();
+
 function syncIncomingFiles(files) {
   if (!Array.isArray(files)) return;
   for (const f of files) {
-    if (f && f.name && !f.isFolder) {
-      const targetPath = resolveSafePath(f.path || f.name);
+    if (f) {
+      const filePath = f.path || f.name;
+      if (!filePath) continue;
+      const targetPath = resolveSafePath(filePath);
       if (!targetPath) continue;
       try {
-        fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-        fs.writeFileSync(targetPath, f.content || "", "utf8");
+        if (f.isFolder || filePath.endsWith("/")) {
+          if (fs.existsSync(targetPath) && !fs.statSync(targetPath).isDirectory()) {
+            fs.rmSync(targetPath, { force: true });
+          }
+          fs.mkdirSync(targetPath, { recursive: true });
+        } else {
+          if (fs.existsSync(targetPath) && fs.statSync(targetPath).isDirectory()) {
+            continue;
+          }
+          fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+          fs.writeFileSync(targetPath, f.content || "", "utf8");
+        }
       } catch {}
     }
   }
@@ -323,7 +358,11 @@ let nodePty = null;
 try {
   nodePty = require("node-pty");
 } catch {
-  // node-pty native module not found
+  try {
+    nodePty = require(path.join(os.homedir(), ".codetogether", "node_modules", "node-pty"));
+  } catch {
+    // node-pty native module not found
+  }
 }
 
 function getDefaultShell() {
@@ -361,7 +400,25 @@ function spawnLocalPty(terminalId, cols = 80, rows = 24) {
   }
 
   const shell = getDefaultShell();
-  const args = [];
+  const defaultUserPath = [
+    "/opt/homebrew/bin",
+    "/opt/homebrew/sbin",
+    "/usr/local/bin",
+    "/usr/local/sbin",
+    process.env.PATH || "/usr/bin:/bin:/usr/sbin:/sbin",
+    path.join(os.homedir(), ".cargo/bin"),
+    path.join(os.homedir(), ".local/bin"),
+  ].join(path.delimiter);
+
+  const shellEnv = {
+    ...process.env,
+    PATH: defaultUserPath,
+    TERM: "xterm-256color",
+    COLORTERM: "truecolor",
+    FORCE_COLOR: "1",
+  };
+
+  const args = process.platform === "win32" ? [] : ["-l"];
 
   let child = null;
   if (nodePty) {
@@ -371,12 +428,7 @@ function spawnLocalPty(terminalId, cols = 80, rows = 24) {
         cols: cols || 80,
         rows: rows || 24,
         cwd: WORKSPACE_DIR,
-        env: {
-          ...process.env,
-          TERM: "xterm-256color",
-          COLORTERM: "truecolor",
-          FORCE_COLOR: "1",
-        },
+        env: shellEnv,
       });
     } catch (ptyErr) {
       console.warn("[agent] node-pty spawn failed:", ptyErr.message, "- Falling back to child_process");
@@ -387,15 +439,10 @@ function spawnLocalPty(terminalId, cols = 80, rows = 24) {
   if (!child) {
     // Fallback using child_process.spawn
     const { spawn } = require("child_process");
-    const fallbackArgs = process.platform === "win32" ? [] : ["-i"];
+    const fallbackArgs = process.platform === "win32" ? [] : ["-l"];
     const proc = spawn(shell, fallbackArgs, {
       cwd: WORKSPACE_DIR,
-      env: {
-        ...process.env,
-        TERM: "xterm-256color",
-        COLORTERM: "truecolor",
-        FORCE_COLOR: "1",
-      },
+      env: shellEnv,
       stdio: ["pipe", "pipe", "pipe"],
     });
 
@@ -553,6 +600,17 @@ wss.on("connection", (ws, req) => {
     }
 
     if (!msg || typeof msg.type !== "string") return;
+
+    // ── Room Tunnel Switching ──
+    if (msg.type === "connect-room" || msg.type === "switch-room") {
+      const targetRoom = msg.roomId || options.room;
+      const targetServer = msg.server || options.server || "http://localhost:3000";
+      if (targetRoom) {
+        connectReverseTunnel(targetServer, targetRoom);
+        safeSend({ type: "connect-room:ok", roomId: targetRoom });
+      }
+      return;
+    }
 
     // ── Authentication Message ──
     if (msg.type === "auth") {
@@ -716,9 +774,35 @@ wss.on("connection", (ws, req) => {
   ws.on("error", () => {});
 });
 
-// ── Reverse Tunnel to Cloud Server ──
+// ── Reverse Tunnel to Cloud Server (Singleton) ──
+let activeTunnelWs = null;
+let activeTunnelRoomId = null;
+let activeTunnelRetryTimer = null;
+let activeTunnelKeepAliveTimer = null;
+
+function detachTunnel(ws) {
+  for (const session of sessions.values()) {
+    session.subscribers.delete(ws);
+  }
+}
+
 function connectReverseTunnel(serverUrl, roomId) {
   if (!serverUrl || !roomId) return;
+  // If already connected or connecting to the exact same room, do not spawn a duplicate tunnel
+  if (activeTunnelWs && (activeTunnelWs.readyState === 0 || activeTunnelWs.readyState === 1) && activeTunnelRoomId === roomId) {
+    return;
+  }
+
+  // Clean up any existing tunnel before starting a new one
+  if (activeTunnelRetryTimer) clearTimeout(activeTunnelRetryTimer);
+  if (activeTunnelKeepAliveTimer) clearInterval(activeTunnelKeepAliveTimer);
+  if (activeTunnelWs) {
+    detachTunnel(activeTunnelWs);
+    try { activeTunnelWs.close(); } catch {}
+    activeTunnelWs = null;
+  }
+  activeTunnelRoomId = roomId;
+
   const wsProto = serverUrl.startsWith("https") ? "wss:" : "ws:";
   const host = serverUrl.replace(/^https?:\/\//, "").replace(/\/+$/, "");
   const defaultShell = getDefaultShell();
@@ -726,35 +810,25 @@ function connectReverseTunnel(serverUrl, roomId) {
 
   console.log(`\x1b[36m[Tunnel] Connecting to CodeTogether Room "${roomId}" at ${wsProto}//${host}...\x1b[0m`);
 
-  let tunnelWs = null;
-  let retryTimer = null;
-  let keepAliveTimer = null;
-
-  function detachTunnel(ws) {
-    for (const session of sessions.values()) {
-      session.subscribers.delete(ws);
-    }
-  }
-
   function scheduleReconnect() {
-    clearTimeout(retryTimer);
-    retryTimer = setTimeout(connect, 2000);
+    clearTimeout(activeTunnelRetryTimer);
+    activeTunnelRetryTimer = setTimeout(connect, 2000);
   }
 
   function connect() {
     try {
-      if (tunnelWs) {
-        detachTunnel(tunnelWs);
-        try { tunnelWs.close(); } catch {}
+      if (activeTunnelWs) {
+        detachTunnel(activeTunnelWs);
+        try { activeTunnelWs.close(); } catch {}
       }
 
       const ws = new (require("ws"))(tunnelUrl);
-      tunnelWs = ws;
+      activeTunnelWs = ws;
 
       ws.on("open", () => {
         console.log(`\x1b[32m[Tunnel] ✅ Connected to Room "${roomId}"! Local terminal is now live in browser.\x1b[0m`);
-        clearInterval(keepAliveTimer);
-        keepAliveTimer = setInterval(() => {
+        clearInterval(activeTunnelKeepAliveTimer);
+        activeTunnelKeepAliveTimer = setInterval(() => {
           if (ws.readyState === ws.OPEN) {
             try { ws.send(JSON.stringify({ type: "ping" })); } catch {}
           }
@@ -783,6 +857,7 @@ function connectReverseTunnel(serverUrl, roomId) {
             if (ws.readyState === ws.OPEN) {
               ws.send(JSON.stringify({
                 type: "attached",
+                ok: true,
                 terminalId,
                 shell: defaultShell,
                 workspace: WORKSPACE_DIR,
@@ -840,8 +915,9 @@ function connectReverseTunnel(serverUrl, roomId) {
       });
 
       ws.on("close", () => {
-        clearInterval(keepAliveTimer);
+        clearInterval(activeTunnelKeepAliveTimer);
         detachTunnel(ws);
+        if (activeTunnelWs === ws) activeTunnelWs = null;
         console.log(`\x1b[33m[Tunnel] Disconnected from room ${roomId}. Reconnecting in 2s...\x1b[0m`);
         scheduleReconnect();
       });

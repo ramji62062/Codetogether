@@ -5,6 +5,7 @@ node_modules/
 temp_workspaces/
 temp_runs/
 tsconfig.tsbuildinfo
+.DS_Store
 
 # Electron
 dist-electron/

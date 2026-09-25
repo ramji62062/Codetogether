@@ -74,6 +74,40 @@ function sessionKey(roomId, terminalId) {
   return `${roomId}:${terminalId}`;
 }
 
+function extractPortAndUrl(text) {
+  if (!text) return null;
+  const clean = String(text).replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "");
+
+  const urlMatch = clean.match(/https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0):(\d{2,5})(?:\/[^\s]*)?/i);
+  if (urlMatch) {
+    const port = parseInt(urlMatch[1], 10);
+    if (port && port !== 3000) {
+      return { url: `http://localhost:${port}`, port };
+    }
+  }
+
+  const viteMatch = clean.match(/(?:Local|Network|App|Server):\s*(https?:\/\/[^\s]+)/i);
+  if (viteMatch) {
+    try {
+      const u = new URL(viteMatch[1]);
+      const port = parseInt(u.port, 10);
+      if (port && port !== 3000) {
+        return { url: `http://localhost:${port}`, port };
+      }
+    } catch {}
+  }
+
+  const portMatch = clean.match(/(?:port|listening on|running at|server on)\s*[:=]?\s*(\d{4,5})/i);
+  if (portMatch) {
+    const port = parseInt(portMatch[1], 10);
+    if (port && port !== 3000) {
+      return { url: `http://localhost:${port}`, port };
+    }
+  }
+
+  return null;
+}
+
 // ─── Unified spawn that works with or without node-pty ───────────────
 function spawnShell(command, args, opts) {
   if (pty) {
@@ -157,21 +191,21 @@ async function spawnLocalPty(roomId, terminalId, cols, rows, files) {
   syncFilesToWorkspace(roomId, files);
 
   const shell = detectValidShell();
-  const args = process.platform === "win32" ? [] : ["--norc", "--noprofile"];
+  const args = [];
 
   let wrapper;
   try {
     wrapper = spawnShell(shell, args, {
       cols, rows,
       cwd: workspacePath,
-      env: { ...process.env, TERM: "xterm-256color", COLORTERM: "truecolor", FORCE_COLOR: "1" },
+      env: { ...process.env, HOME: workspacePath, TERM: "xterm-256color", COLORTERM: "truecolor", FORCE_COLOR: "1" },
     });
   } catch (err) {
     try {
       wrapper = spawnShell("/bin/sh", [], {
         cols, rows,
         cwd: workspacePath,
-        env: { ...process.env, TERM: "xterm-256color" },
+        env: { ...process.env, HOME: workspacePath, TERM: "xterm-256color" },
       });
     } catch (fallbackErr) {
       recordError("pty_local_spawn_failed", `${key}: ${err.message}`);
@@ -198,6 +232,21 @@ async function spawnLocalPty(roomId, terminalId, cols, rows, files) {
     if (!session.alive) return;
     session.outputBuffer = (session.outputBuffer + data).slice(-MAX_OUTPUT_BUFFER);
     touchActivity(roomId);
+
+    const detected = extractPortAndUrl(data);
+    if (detected) {
+      session.detectedPort = detected.port;
+      global.__activeRoomServers = global.__activeRoomServers || new Map();
+      global.__activeRoomServers.set(roomId, { port: detected.port, url: detected.url });
+      const readyMsg = JSON.stringify({ type: "server-ready", roomId, port: detected.port, url: detected.url });
+      for (const sub of session.subscribers) {
+        if (sub.readyState === sub.OPEN) sub.send(readyMsg);
+      }
+      if (activeIoRef) {
+        activeIoRef.to(roomId).emit("terminal:server-ready", { roomId, port: detected.port, url: detected.url });
+      }
+    }
+
     const frame = JSON.stringify({ type: "output", roomId, terminalId, data });
     for (const sub of session.subscribers) {
       if (sub.readyState === sub.OPEN) sub.send(frame);
@@ -368,6 +417,16 @@ async function onAttach(ws, send, msg) {
     dockerReady: isDockerReady,
   });
 
+  if (session.detectedPort) {
+    send({
+      type: "server-ready",
+      roomId: auth.roomId,
+      terminalId,
+      port: session.detectedPort,
+      url: `http://localhost:${session.detectedPort}`,
+    });
+  }
+
   // Replay buffered scrollback so a late joiner / reconnected client sees the
   // existing shell state instead of a blank screen.
   if (session.outputBuffer) {
@@ -404,6 +463,12 @@ function handleConnection(ws, req) {
     const shell = url.searchParams.get("shell") || "zsh";
     const platform = url.searchParams.get("platform") || process.platform;
     console.log(`[tunnel] Local companion connected for room ${agentRoomId} (${shell}, ${platform})`);
+
+    // Clean up any previous agent connection for this room to avoid duplicate tunnels
+    const prevAgent = roomAgents.get(agentRoomId);
+    if (prevAgent && prevAgent.ws && prevAgent.ws !== ws) {
+      try { prevAgent.ws.close(); } catch {}
+    }
 
     const agentInfo = { ws, roomId: agentRoomId, shell, platform, createdAt: Date.now() };
     roomAgents.set(agentRoomId, agentInfo);
@@ -629,6 +694,19 @@ function handleConnection(ws, req) {
           }
           syncFilesToWorkspace(msg.roomId, msg.files || []);
           break;
+
+        case "get-files": {
+          const files = collectWorkspaceFiles(msg.roomId);
+          safeSend(ws, {
+            type: "files-sync",
+            roomId: msg.roomId,
+            files,
+          });
+          if (activeIoRef) {
+            activeIoRef.to(msg.roomId).emit("terminal:files-updated", { roomId: msg.roomId, files });
+          }
+          break;
+        }
 
         case "kill":
           if (agent && agent.ws.readyState === agent.ws.OPEN) {

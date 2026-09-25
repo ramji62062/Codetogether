@@ -185,11 +185,11 @@ export default function DownloadPage() {
             </div>
             <div className="bg-[#12121a] border border-[#1e1e2e] rounded-xl p-4">
               <div className="text-purple-400 font-medium mb-1">Video &amp; Screen Share</div>
-              <div className="text-[#94a3b8]">Built-in WebRTC video calls and screen sharing</div>
+              <div className="text-[#94a3b8]">Built-in live video calls and screen sharing</div>
             </div>
             <div className="bg-[#12121a] border border-[#1e1e2e] rounded-xl p-4">
               <div className="text-amber-400 font-medium mb-1">AI Integration</div>
-              <div className="text-[#94a3b8]">Optional Ollama integration for local AI code assistance</div>
+              <div className="text-[#94a3b8]">Integrated AI assistant for intelligent code suggestions and learning</div>
             </div>
           </div>
         </div>

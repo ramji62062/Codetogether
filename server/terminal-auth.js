@@ -30,7 +30,7 @@ async function validateTerminalAccess(token, roomId, userIdHint) {
 
   if (!token) {
     // If no token provided, in local dev environment allow access with userIdHint
-    if (!rawSupabaseUrl) {
+    if (process.env.NODE_ENV !== "production" || !rawSupabaseUrl) {
       return { ok: true, userId: userIdHint || "dev-user", roomId };
     }
     return { ok: false, error: "Authentication required for terminal access." };

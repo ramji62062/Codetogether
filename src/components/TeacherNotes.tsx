@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   BookOpen, Download, Send, Pin, PinOff, Trash2, Plus, Eye, Edit3, Copy, Check,
-  Globe, Image, Bold, Italic, Underline, Strikethrough, Code, Type, List,
-  ListOrdered, Quote, Minimize2, Maximize2, RotateCcw, Scissors, Copy as CopyIcon,
-  Edit3 as EditIcon, Trash2 as TrashIcon, Link as LinkIcon, Heading1, Heading2,
-  Heading3, AlignLeft, AlignCenter, AlignRight, Undo2, Redo2, FlipHorizontal,
-  FlipVertical, RotateCw, Sun, Contrast, Sliders, Sparkles
+  Globe, Image as ImageIcon, Bold, Italic, Underline, Strikethrough, Code, Type, List,
+  ListOrdered, Quote, RotateCcw, Copy as CopyIcon,
+  Trash2 as TrashIcon, Link as LinkIcon, Heading1, Heading2,
+  Heading3, AlignLeft, AlignCenter, AlignRight, Undo2, Redo2, Palette
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -22,15 +21,15 @@ type Note = {
 };
 
 const NOTE_COLORS = [
-  { id: "default", label: "Default", bg: "#1a1a2e", border: "#333355", accent: "#cccccc" },
-  { id: "yellow", label: "Yellow", bg: "#3d3419", border: "#FBBF24", accent: "#FBBF24" },
-  { id: "blue", label: "Blue", bg: "#1a2540", border: "#3B82F6", accent: "#60A5FA" },
-  { id: "green", label: "Green", bg: "#1a2e1f", border: "#22C55E", accent: "#4ADE80" },
-  { id: "purple", label: "Purple", bg: "#2a1a3d", border: "#A855F7", accent: "#C084FC" },
-  { id: "pink", label: "Pink", bg: "#3d1a2e", border: "#EC4899", accent: "#F472B6" },
-  { id: "orange", label: "Orange", bg: "#3d2519", border: "#F97316", accent: "#FB923C" },
-  { id: "cyan", label: "Cyan", bg: "#1a2e3d", border: "#06B6D4", accent: "#22D3EE" },
-  { id: "red", label: "Red", bg: "#3d1a1a", border: "#EF4444", accent: "#F87171" },
+  { id: "default", label: "Default", bg: "#1a1a2e", border: "#333355", accent: "#e2e8f0" },
+  { id: "yellow", label: "Yellow", bg: "#2d2613", border: "#FBBF24", accent: "#FDE68A" },
+  { id: "blue", label: "Blue", bg: "#141f36", border: "#3B82F6", accent: "#93C5FD" },
+  { id: "green", label: "Green", bg: "#13261a", border: "#22C55E", accent: "#86EFAC" },
+  { id: "purple", label: "Purple", bg: "#231436", border: "#A855F7", accent: "#D8B4FE" },
+  { id: "pink", label: "Pink", bg: "#301324", border: "#EC4899", accent: "#F9A8D4" },
+  { id: "orange", label: "Orange", bg: "#301d13", border: "#F97316", accent: "#FDBA74" },
+  { id: "cyan", label: "Cyan", bg: "#13242e", border: "#06B6D4", accent: "#67E8F9" },
+  { id: "red", label: "Red", bg: "#301313", border: "#EF4444", accent: "#FCA5A5" },
 ];
 
 function getNoteColor(id?: string) {
@@ -46,28 +45,97 @@ type SharedNote = {
   createdAt: number;
 };
 
-type ImageBlock = {
-  id: string;
-  src: string;
-  alt: string;
-  width: number;
-  height: number;
-  x: number;
-  y: number;
-  rotation: number;
-  flipH?: boolean;
-  flipV?: boolean;
-  filter?: "none" | "grayscale" | "sepia" | "invert" | "blur" | "brightness" | "contrast";
-  opacity?: number;
-  borderRadius?: number;
-  shadow?: boolean;
-};
-
 interface TeacherNotesProps {
   roomId: string;
   currentUserId: string;
   currentUserName: string;
   isTeacher?: boolean;
+}
+
+// Converts legacy or typed markdown into real HTML so it renders formatted in the rich text editor
+function markdownToHtml(md: string): string {
+  if (!md) return "";
+  // If it already contains HTML tags, return as-is
+  if (/<(p|h1|h2|h3|ul|ol|li|blockquote|pre|b|strong|i|em|u|del|strike|div|span|img|a)\b/i.test(md)) {
+    return md;
+  }
+  let html = md;
+  // Code blocks
+  html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  // Headings
+  html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+  html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+  html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+  // Bold & Italic
+  html = html.replace(/\*\*\*(.*?)\*\*\*/g, '<b><i>$1</i></b>');
+  html = html.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+  html = html.replace(/\*(.*?)\*/g, '<i>$1</i>');
+  // Strike
+  html = html.replace(/~~(.*?)~~/g, '<del>$1</del>');
+  // Underline
+  html = html.replace(/__(.*?)__/g, '<u>$1</u>');
+  // Images
+  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;border-radius:8px;margin:8px 0;" />');
+  // Links
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  // Blockquotes
+  html = html.replace(/^> (.*$)/gim, '<blockquote>$1</blockquote>');
+  // Lists
+  html = html.replace(/^- (.*$)/gim, '<li>$1</li>');
+  html = html.replace(/^\d+\. (.*$)/gim, '<li>$1</li>');
+  // Newlines to break
+  html = html.replace(/\n/g, '<br>');
+  return html;
+}
+
+// Converts HTML to clean Markdown for download or export
+function htmlToMarkdown(html: string): string {
+  if (!html) return "";
+  if (typeof document === "undefined") return html;
+  const temp = document.createElement("div");
+  temp.innerHTML = html;
+
+  function traverse(node: Node): string {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return node.textContent || "";
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return "";
+
+    const el = node as HTMLElement;
+    const tag = el.tagName.toLowerCase();
+    let children = "";
+    el.childNodes.forEach((child) => {
+      children += traverse(child);
+    });
+
+    switch (tag) {
+      case "h1": return `\n# ${children}\n`;
+      case "h2": return `\n## ${children}\n`;
+      case "h3": return `\n### ${children}\n`;
+      case "b":
+      case "strong": return `**${children}**`;
+      case "i":
+      case "em": return `*${children}*`;
+      case "u": return `<u>${children}</u>`;
+      case "del":
+      case "s":
+      case "strike": return `~~${children}~~`;
+      case "blockquote": return `\n> ${children}\n`;
+      case "code": return `\`${children}\``;
+      case "pre": return `\n\`\`\`\n${children}\n\`\`\`\n`;
+      case "li": return `\n- ${children}`;
+      case "a": return `[${children}](${el.getAttribute("href") || ""})`;
+      case "img": return `![${el.getAttribute("alt") || "Image"}](${el.getAttribute("src") || ""})`;
+      case "br": return `\n`;
+      case "p":
+      case "div": return `\n${children}\n`;
+      default: return children;
+    }
+  }
+
+  return traverse(temp).trim().replace(/\n{3,}/g, "\n\n");
 }
 
 export default function TeacherNotes({ roomId, currentUserId, currentUserName, isTeacher = false }: TeacherNotesProps) {
@@ -78,35 +146,102 @@ export default function TeacherNotes({ roomId, currentUserId, currentUserName, i
   
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
-  const [preview, setPreview] = useState(false);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [imageUrlInput, setImageUrlInput] = useState("");
-  const [selectedImage, setSelectedImage] = useState<ImageBlock | null>(null);
-  const [images, setImages] = useState<ImageBlock[]>([]);
-  const [history, setHistory] = useState<string[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [linkText, setLinkText] = useState("");
+  const [showColorPicker, setShowColorPicker] = useState(false);
 
-  const notesRef = useRef<Note[]>([]);
+  // Active toolbar formats state for active button indicators
+  const [activeFormats, setActiveFormats] = useState<{ [key: string]: boolean }>({});
+
+  const editorRef = useRef<HTMLDivElement | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Sync toolbar active states from current selection
+  const updateActiveFormats = useCallback(() => {
+    if (typeof document === "undefined") return;
+    try {
+      const isBold = document.queryCommandState("bold");
+      const isItalic = document.queryCommandState("italic");
+      const isUnderline = document.queryCommandState("underline");
+      const isStrike = document.queryCommandState("strikeThrough");
+      const isUl = document.queryCommandState("insertUnorderedList");
+      const isOl = document.queryCommandState("insertOrderedList");
+      const isLeft = document.queryCommandState("justifyLeft");
+      const isCenter = document.queryCommandState("justifyCenter");
+      const isRight = document.queryCommandState("justifyRight");
+      
+      let block = "";
+      try {
+        block = (document.queryCommandValue("formatBlock") || "").toLowerCase();
+      } catch {}
+
+      setActiveFormats({
+        bold: isBold,
+        italic: isItalic,
+        underline: isUnderline,
+        strikethrough: isStrike,
+        bullet: isUl,
+        numbered: isOl,
+        "align-left": isLeft,
+        "align-center": isCenter,
+        "align-right": isRight,
+        h1: block === "h1",
+        h2: block === "h2",
+        h3: block === "h3",
+        quote: block === "blockquote",
+        codeblock: block === "pre",
+      });
+    } catch {}
+  }, []);
 
   useEffect(() => {
-    notesRef.current = notes;
-  }, [notes]);
+    const handleSelectionChange = () => {
+      updateActiveFormats();
+    };
+    document.addEventListener("selectionchange", handleSelectionChange);
+    return () => document.removeEventListener("selectionchange", handleSelectionChange);
+  }, [updateActiveFormats]);
 
+  const saveToStorage = (updatedNotes: Note[]) => {
+    const key = `notes_${roomId}_${currentUserId}`;
+    try {
+      localStorage.setItem(key, JSON.stringify(updatedNotes));
+    } catch {}
+  };
+
+  // Populate editor DOM when active note changes
+  const loadNoteIntoEditor = (content: string) => {
+    const html = markdownToHtml(content || "");
+    setEditContent(html);
+    if (editorRef.current) {
+      editorRef.current.innerHTML = html;
+    }
+  };
+
+  // Load from localStorage on mount & auto-select first note
   useEffect(() => {
     const key = `notes_${roomId}_${currentUserId}`;
     try {
       const stored = localStorage.getItem(key);
-      if (stored) setNotes(JSON.parse(stored));
+      if (stored) {
+        const parsed: Note[] = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setNotes(parsed);
+          setActiveNote(parsed[0].id);
+          setIsActiveShared(false);
+          setEditTitle(parsed[0].title);
+          loadNoteIntoEditor(parsed[0].content || "");
+        }
+      }
     } catch {}
   }, [roomId, currentUserId]);
 
+  // Real-time broadcast for classroom shared notes
   useEffect(() => {
     if (!roomId) return;
     const channel = supabase.channel(`notes:${roomId}`);
@@ -124,26 +259,20 @@ export default function TeacherNotes({ roomId, currentUserId, currentUserName, i
               return [note, ...prev];
             }
           });
-          setActiveNote((currActive) => {
-            if (currActive === note.id) {
-              setEditTitle(note.title);
-              setEditContent(note.content);
-            }
-            return currActive;
-          });
         }
       })
       .on("broadcast", { event: "notes-delete" }, ({ payload }: { payload: { noteId: string } }) => {
         const { noteId } = payload;
         if (noteId) {
           setSharedNotes((prev) => prev.filter((n) => n.id !== noteId));
-          setActiveNote((currActive) => {
-            if (currActive === noteId) {
+          setActiveNote((curr) => {
+            if (curr === noteId) {
               setEditTitle("");
               setEditContent("");
+              if (editorRef.current) editorRef.current.innerHTML = "";
               return null;
             }
-            return currActive;
+            return curr;
           });
         }
       })
@@ -154,71 +283,38 @@ export default function TeacherNotes({ roomId, currentUserId, currentUserName, i
     };
   }, [roomId]);
 
-  const saveToStorage = (updatedNotes: Note[]) => {
-    const key = `notes_${roomId}_${currentUserId}`;
-    localStorage.setItem(key, JSON.stringify(updatedNotes));
-  };
-
-  const createNote = () => {
-    const newNote: Note = {
-      id: Date.now().toString(),
-      title: "Untitled Note",
-      content: "",
-      published: false,
-      pinned: false,
-      createdAt: Date.now(),
-      color: "default",
-    };
-    const updated = [newNote, ...notes];
-    setNotes(updated);
-    saveToStorage(updated);
-    selectPrivateNote(newNote);
-  };
-
-  const selectPrivateNote = (note: Note) => {
-    setActiveNote(note.id);
-    setIsActiveShared(false);
-    setEditTitle(note.title);
-    setEditContent(note.content);
-  };
-
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (!detail || detail.roomId !== roomId || detail.userId !== currentUserId) return;
-      const newNote: Note = {
-        id: Date.now().toString(),
-        title: detail.title || "AI Note",
-        content: detail.content || "",
-        published: false,
-        pinned: false,
-        createdAt: Date.now(),
-        color: "blue",
-      };
+  const handleTitleChange = (newTitle: string) => {
+    setEditTitle(newTitle);
+    if (activeNote && !isActiveShared) {
       setNotes((prev) => {
-        const updated = [newNote, ...prev];
+        const updated = prev.map((n) => (n.id === activeNote ? { ...n, title: newTitle } : n));
         saveToStorage(updated);
         return updated;
       });
-      selectPrivateNote(newNote);
-    };
-    window.addEventListener("codetogether:note-create", handler);
-    return () => window.removeEventListener("codetogether:note-create", handler);
-  }, [roomId, currentUserId]);
+    }
+  };
 
-  const selectSharedNote = (note: SharedNote) => {
-    setActiveNote(note.id);
-    setIsActiveShared(true);
-    setEditTitle(note.title);
-    setEditContent(note.content);
+  const handleEditorInput = () => {
+    if (!editorRef.current) return;
+    const html = editorRef.current.innerHTML;
+    setEditContent(html);
+    if (activeNote && !isActiveShared) {
+      setNotes((prev) => {
+        const updated = prev.map((n) => (n.id === activeNote ? { ...n, content: html } : n));
+        saveToStorage(updated);
+        return updated;
+      });
+    }
+    updateActiveFormats();
   };
 
   const saveActiveNote = () => {
     if (!activeNote || isActiveShared) return;
     setSaving(true);
+    const html = editorRef.current ? editorRef.current.innerHTML : editContent;
     const updated = notes.map((n) => {
       if (n.id === activeNote) {
-        const noteObj = { ...n, title: editTitle.trim() || "Untitled Note", content: editContent };
+        const noteObj = { ...n, title: editTitle.trim() || "Untitled Note", content: html };
         if (n.published && channelRef.current) {
           channelRef.current.send({
             type: "broadcast",
@@ -242,6 +338,84 @@ export default function TeacherNotes({ roomId, currentUserId, currentUserName, i
     setNotes(updated);
     saveToStorage(updated);
     setTimeout(() => setSaving(false), 300);
+  };
+
+  const createNote = () => {
+    // Flush current note edits
+    if (activeNote && !isActiveShared && editorRef.current) {
+      const currentHtml = editorRef.current.innerHTML;
+      setNotes((prev) => {
+        const flushed = prev.map((n) =>
+          n.id === activeNote ? { ...n, title: editTitle.trim() || "Untitled Note", content: currentHtml } : n
+        );
+        saveToStorage(flushed);
+        return flushed;
+      });
+    }
+
+    const newNote: Note = {
+      id: Date.now().toString(),
+      title: "Untitled Note",
+      content: "",
+      published: false,
+      pinned: false,
+      createdAt: Date.now(),
+      color: "default",
+    };
+
+    setNotes((prev) => {
+      const updated = [newNote, ...prev];
+      saveToStorage(updated);
+      return updated;
+    });
+
+    setActiveNote(newNote.id);
+    setIsActiveShared(false);
+    setEditTitle(newNote.title);
+    loadNoteIntoEditor("");
+    setTimeout(() => {
+      if (editorRef.current) editorRef.current.focus();
+    }, 0);
+  };
+
+  const selectPrivateNote = (note: Note) => {
+    if (activeNote === note.id && !isActiveShared) return;
+
+    if (activeNote && !isActiveShared && editorRef.current) {
+      const currentHtml = editorRef.current.innerHTML;
+      setNotes((prev) => {
+        const updated = prev.map((n) =>
+          n.id === activeNote ? { ...n, title: editTitle.trim() || "Untitled Note", content: currentHtml } : n
+        );
+        saveToStorage(updated);
+        return updated;
+      });
+    }
+
+    setActiveNote(note.id);
+    setIsActiveShared(false);
+    setEditTitle(note.title || "Untitled Note");
+    loadNoteIntoEditor(note.content || "");
+  };
+
+  const selectSharedNote = (note: SharedNote) => {
+    if (activeNote === note.id && isActiveShared) return;
+
+    if (activeNote && !isActiveShared && editorRef.current) {
+      const currentHtml = editorRef.current.innerHTML;
+      setNotes((prev) => {
+        const updated = prev.map((n) =>
+          n.id === activeNote ? { ...n, title: editTitle.trim() || "Untitled Note", content: currentHtml } : n
+        );
+        saveToStorage(updated);
+        return updated;
+      });
+    }
+
+    setActiveNote(note.id);
+    setIsActiveShared(true);
+    setEditTitle(note.title);
+    loadNoteIntoEditor(note.content || "");
   };
 
   const togglePin = (id: string) => {
@@ -288,6 +462,7 @@ export default function TeacherNotes({ roomId, currentUserId, currentUserName, i
     const updated = notes.map((n) => (n.id === id ? { ...n, color: colorId } : n));
     setNotes(updated);
     saveToStorage(updated);
+    setShowColorPicker(false);
   };
 
   const deleteNote = (id: string) => {
@@ -295,14 +470,23 @@ export default function TeacherNotes({ roomId, currentUserId, currentUserName, i
     setNotes(updated);
     saveToStorage(updated);
     if (activeNote === id) {
-      setActiveNote(null);
-      setEditTitle("");
-      setEditContent("");
+      if (updated.length > 0) {
+        setActiveNote(updated[0].id);
+        setIsActiveShared(false);
+        setEditTitle(updated[0].title);
+        loadNoteIntoEditor(updated[0].content || "");
+      } else {
+        setActiveNote(null);
+        setEditTitle("");
+        setEditContent("");
+        if (editorRef.current) editorRef.current.innerHTML = "";
+      }
     }
   };
 
   const downloadNote = () => {
-    const blob = new Blob([editContent], { type: "text/markdown" });
+    const md = htmlToMarkdown(editContent);
+    const blob = new Blob([md], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -312,294 +496,141 @@ export default function TeacherNotes({ roomId, currentUserId, currentUserName, i
   };
 
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(editContent);
+    const md = htmlToMarkdown(editContent);
+    navigator.clipboard.writeText(md);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const sortedNotes = [...notes].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
-  const activePrivate = notes.find((n) => n.id === activeNote);
-  const activeShared = sharedNotes.find((n) => n.id === activeNote);
-  const hasActive = activeNote !== null;
+  // Toggle inline code formatting
+  const toggleInlineCode = () => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+    const range = selection.getRangeAt(0);
 
-  const activeColor = getNoteColor(activePrivate?.color);
+    let parent: Node | null = range.commonAncestorContainer;
+    if (parent.nodeType === Node.TEXT_NODE) parent = parent.parentNode;
 
-  function renderMarkdown(md: string, accentColor = "#fff") {
-    let result = md;
-    result = result.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    result = result
-      .replace(/^### (.*$)/gim, `<h3 style="font-size:15px;font-weight:700;margin:12px 0 6px;color:${accentColor};">$1</h3>`)
-      .replace(/^## (.*$)/gim, `<h2 style="font-size:17px;font-weight:800;margin:16px 0 8px;color:${accentColor};">$1</h2>`)
-      .replace(/^# (.*$)/gim, `<h1 style="font-size:20px;font-weight:900;margin:20px 0 10px;color:${accentColor};">$1</h1>`)
-      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\*(.*?)\*/g, "<em>$1</em>")
-      .replace(/~~(.*?)~~/g, "<del>$1</del>")
-      .replace(/__(.*?)__/g, "<u>$1</u>")
-      .replace(/`([^`]+)`/g, '<code style="background:#222;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12px;color:#fff;">$1</code>')
-      .replace(/```([\s\S]*?)```/g, '<pre style="background:#111;padding:12px;border-radius:8px;overflow-x:auto;font-family:monospace;font-size:12px;color:#ccc;"><code>$1</code></pre>')
-      .replace(/\!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;height:auto;border-radius:8px;margin:8px 0;" />')
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" style="color:#7C3AED;text-decoration:underline;">$1</a>')
-      .replace(/^> (.*$)/gim, '<blockquote style="border-left:3px solid #7C3AED;padding-left:12px;margin:12px 0;color:#aaa;font-style:italic;">$1</blockquote>')
-      .replace(/^- (.*$)/gim, '<li style="margin:4px 0;padding-left:20px;">$1</li>')
-      .replace(/^\d+\. (.*$)/gim, '<li style="margin:4px 0;padding-left:20px;">$1</li>')
-      .replace(/<div align='left'>(.*?)<\/div>/g, '<div style="text-align:left;">$1</div>')
-      .replace(/<div align='center'>(.*?)<\/div>/g, '<div style="text-align:center;">$1</div>')
-      .replace(/<div align='right'>(.*?)<\/div>/g, '<div style="text-align:right;">$1</div>')
-      .replace(/\n/g, "<br/>");
-    return result;
-  }
-
-  // 18 Format Buttons
-  const formatButtons = [
-    { id: "h1", icon: <Heading1 size={14} />, title: "Heading 1", shortcut: "Ctrl+1" },
-    { id: "h2", icon: <Heading2 size={14} />, title: "Heading 2", shortcut: "Ctrl+2" },
-    { id: "h3", icon: <Heading3 size={14} />, title: "Heading 3", shortcut: "Ctrl+3" },
-    { id: "bold", icon: <Bold size={14} />, title: "Bold", shortcut: "Ctrl+B" },
-    { id: "italic", icon: <Italic size={14} />, title: "Italic", shortcut: "Ctrl+I" },
-    { id: "underline", icon: <Underline size={14} />, title: "Underline", shortcut: "Ctrl+U" },
-    { id: "strikethrough", icon: <Strikethrough size={14} />, title: "Strikethrough" },
-    { id: "code", icon: <Code size={14} />, title: "Inline Code" },
-    { id: "codeblock", icon: <Type size={14} />, title: "Code Block" },
-    { id: "quote", icon: <Quote size={14} />, title: "Quote" },
-    { id: "bullet", icon: <List size={14} />, title: "Bullet List" },
-    { id: "numbered", icon: <ListOrdered size={14} />, title: "Numbered List" },
-    { id: "link", icon: <LinkIcon size={14} />, title: "Insert Link", shortcut: "Ctrl+K" },
-    { id: "image", icon: <Image size={14} />, title: "Insert Image" },
-    { id: "align-left", icon: <AlignLeft size={14} />, title: "Align Left" },
-    { id: "align-center", icon: <AlignCenter size={14} />, title: "Align Center" },
-    { id: "align-right", icon: <AlignRight size={14} />, title: "Align Right" },
-    { id: "undo", icon: <Undo2 size={14} />, title: "Undo", shortcut: "Ctrl+Z" },
-    { id: "redo", icon: <Redo2 size={14} />, title: "Redo", shortcut: "Ctrl+Y" },
-  ];
-
-  const pushHistory = (content: string) => {
-    setHistory((prev) => {
-      const next = prev.slice(0, historyIndex + 1);
-      next.push(content);
-      return next.slice(-50);
-    });
-    setHistoryIndex((prev) => Math.min(prev + 1, 49));
-  };
-
-  const undo = () => {
-    if (historyIndex > 0) {
-      const newIndex = historyIndex - 1;
-      setHistoryIndex(newIndex);
-      setEditContent(history[newIndex]);
+    if (parent && (parent as HTMLElement).tagName === "CODE") {
+      const textNode = document.createTextNode(parent.textContent || "");
+      parent.parentNode?.replaceChild(textNode, parent);
+    } else {
+      const selectedText = range.toString();
+      const codeEl = document.createElement("code");
+      codeEl.textContent = selectedText || "code";
+      range.deleteContents();
+      range.insertNode(codeEl);
+      range.selectNodeContents(codeEl);
+      selection.removeAllRanges();
+      selection.addRange(range);
     }
   };
 
-  const redo = () => {
-    if (historyIndex < history.length - 1) {
-      const newIndex = historyIndex + 1;
-      setHistoryIndex(newIndex);
-      setEditContent(history[newIndex]);
-    }
-  };
-
+  // WYSIWYG Format Applicator using document.execCommand
   const applyFormat = (format: string, value?: string) => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = editContent;
-    const selectedText = text.substring(start, end);
-    
-    let newText = text;
-    let newCursorPos = start;
-    
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+
     switch (format) {
       case "bold":
-        newText = text.substring(0, start) + "**" + selectedText + "**" + text.substring(end);
-        newCursorPos = start + 2 + selectedText.length + 2;
+        document.execCommand("bold", false, undefined);
         break;
       case "italic":
-        newText = text.substring(0, start) + "*" + selectedText + "*" + text.substring(end);
-        newCursorPos = start + 1 + selectedText.length + 1;
+        document.execCommand("italic", false, undefined);
         break;
       case "underline":
-        newText = text.substring(0, start) + "<u>" + selectedText + "</u>" + text.substring(end);
-        newCursorPos = start + 3 + selectedText.length + 4;
+        document.execCommand("underline", false, undefined);
         break;
       case "strikethrough":
-        newText = text.substring(0, start) + "~~" + selectedText + "~~" + text.substring(end);
-        newCursorPos = start + 2 + selectedText.length + 2;
-        break;
-      case "code":
-        newText = text.substring(0, start) + "`" + selectedText + "`" + text.substring(end);
-        newCursorPos = start + 1 + selectedText.length + 1;
-        break;
-      case "codeblock":
-        newText = text.substring(0, start) + "```\n" + selectedText + "\n```" + text.substring(end);
-        newCursorPos = start + 4 + selectedText.length + 4;
+        document.execCommand("strikeThrough", false, undefined);
         break;
       case "h1":
-        newText = text.substring(0, start) + "# " + (selectedText || "Heading 1") + text.substring(end);
+        document.execCommand("formatBlock", false, activeFormats.h1 ? "<p>" : "<h1>");
         break;
       case "h2":
-        newText = text.substring(0, start) + "## " + (selectedText || "Heading 2") + text.substring(end);
+        document.execCommand("formatBlock", false, activeFormats.h2 ? "<p>" : "<h2>");
         break;
       case "h3":
-        newText = text.substring(0, start) + "### " + (selectedText || "Heading 3") + text.substring(end);
+        document.execCommand("formatBlock", false, activeFormats.h3 ? "<p>" : "<h3>");
         break;
       case "quote":
-        newText = text.substring(0, start) + "> " + selectedText.replace(/\n/g, "\n> ") + text.substring(end);
+        document.execCommand("formatBlock", false, activeFormats.quote ? "<p>" : "<blockquote>");
+        break;
+      case "codeblock":
+        document.execCommand("formatBlock", false, activeFormats.codeblock ? "<p>" : "<pre>");
         break;
       case "bullet":
-        newText = text.substring(0, start) + "- " + selectedText.replace(/\n/g, "\n- ") + text.substring(end);
+        document.execCommand("insertUnorderedList", false, undefined);
         break;
       case "numbered":
-        newText = text.substring(0, start) + "1. " + selectedText.replace(/\n/g, "\n2. ") + text.substring(end);
+        document.execCommand("insertOrderedList", false, undefined);
+        break;
+      case "align-left":
+        document.execCommand("justifyLeft", false, undefined);
+        break;
+      case "align-center":
+        document.execCommand("justifyCenter", false, undefined);
+        break;
+      case "align-right":
+        document.execCommand("justifyRight", false, undefined);
+        break;
+      case "undo":
+        document.execCommand("undo", false, undefined);
+        break;
+      case "redo":
+        document.execCommand("redo", false, undefined);
+        break;
+      case "code":
+        toggleInlineCode();
         break;
       case "link":
-        if (value) {
-          newText = text.substring(0, start) + "[" + (selectedText || linkText) + "](" + value + ")" + text.substring(end);
-        }
+        if (value) document.execCommand("createLink", false, value);
         break;
       case "image":
         if (value) {
-          newText = text.substring(0, start) + "![" + (selectedText || "Image") + "](" + value + ")" + text.substring(end);
+          const imgHtml = `<img src="${value}" alt="Note Image" style="max-width:100%;border-radius:8px;margin:8px 0;display:block;" />`;
+          document.execCommand("insertHTML", false, imgHtml);
         }
         break;
-      case "align-left":
-      case "align-center":
-      case "align-right":
-        const alignMap = { "align-left": "<div align='left'>", "align-center": "<div align='center'>", "align-right": "<div align='right'>" };
-        newText = text.substring(0, start) + alignMap[format as keyof typeof alignMap] + selectedText + "</div>" + text.substring(end);
+      default:
         break;
     }
-    
-    setEditContent(newText);
-    pushHistory(newText);
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(newCursorPos, newCursorPos);
-    }, 0);
+
+    handleEditorInput();
   };
 
-  const insertImageIntoNote = (src: string, alt = "Image") => {
-    const textarea = textareaRef.current;
-    const start = textarea?.selectionStart ?? editContent.length;
-    const end = textarea?.selectionEnd ?? editContent.length;
-    const selectedText = editContent.substring(start, end);
-    const imageAlt = selectedText || alt || "Image";
-    const imageId = Date.now().toString();
-    const placeholder = `[Image: ${imageAlt}]`;
-    const newText = editContent.substring(0, start) + placeholder + editContent.substring(end);
-    const newImage: ImageBlock = {
-      id: imageId,
-      src,
-      alt: imageAlt,
-      width: 300,
-      height: 200,
-      x: 100,
-      y: 100,
-      rotation: 0,
-    };
-
-    setImages((prev) => [...prev, newImage]);
-    setSelectedImage(newImage);
-    setEditContent(newText);
-    pushHistory(newText);
-    setShowImageModal(false);
-    setTimeout(() => {
-      textarea?.focus();
-      textarea?.setSelectionRange(start + placeholder.length, start + placeholder.length);
-    }, 0);
-  };
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      insertImageIntoNote(dataUrl, file.name);
-      e.target.value = "";
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handlePasteImage = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const items = e.clipboardData.items;
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
     for (const item of Array.from(items)) {
       if (item.type.startsWith("image/")) {
         e.preventDefault();
         const file = item.getAsFile();
         if (file) {
           const reader = new FileReader();
-          reader.onload = (event) => {
-            const dataUrl = event.target?.result as string;
-            insertImageIntoNote(dataUrl, "Pasted image");
+          reader.onload = (ev) => {
+            const dataUrl = ev.target?.result as string;
+            applyFormat("image", dataUrl);
           };
           reader.readAsDataURL(file);
         }
+        return;
       }
     }
   };
 
-  const handleImageAction = (action: string, image: ImageBlock, value?: any) => {
-    switch (action) {
-      case "size-small":
-        setImages((prev) => prev.map((img) => (img.id === image.id ? { ...img, width: 160, height: 120 } : img)));
-        setSelectedImage((prev) => prev?.id === image.id ? { ...prev, width: 160, height: 120 } : prev);
-        break;
-      case "size-medium":
-        setImages((prev) => prev.map((img) => (img.id === image.id ? { ...img, width: 320, height: 240 } : img)));
-        setSelectedImage((prev) => prev?.id === image.id ? { ...prev, width: 320, height: 240 } : prev);
-        break;
-      case "size-full":
-        setImages((prev) => prev.map((img) => (img.id === image.id ? { ...img, width: 600, height: 400 } : img)));
-        setSelectedImage((prev) => prev?.id === image.id ? { ...prev, width: 600, height: 400 } : prev);
-        break;
-      case "rotate-right":
-        setImages((prev) => prev.map((img) => (img.id === image.id ? { ...img, rotation: (img.rotation + 90) % 360 } : img)));
-        setSelectedImage((prev) => prev?.id === image.id ? { ...prev, rotation: (prev.rotation + 90) % 360 } : prev);
-        break;
-      case "rotate-left":
-        setImages((prev) => prev.map((img) => (img.id === image.id ? { ...img, rotation: (img.rotation - 90 + 360) % 360 } : img)));
-        setSelectedImage((prev) => prev?.id === image.id ? { ...prev, rotation: (prev.rotation - 90 + 360) % 360 } : prev);
-        break;
-      case "flip-h":
-        setImages((prev) => prev.map((img) => (img.id === image.id ? { ...img, flipH: !img.flipH } : img)));
-        setSelectedImage((prev) => prev?.id === image.id ? { ...prev, flipH: !prev.flipH } : prev);
-        break;
-      case "flip-v":
-        setImages((prev) => prev.map((img) => (img.id === image.id ? { ...img, flipV: !img.flipV } : img)));
-        setSelectedImage((prev) => prev?.id === image.id ? { ...prev, flipV: !prev.flipV } : prev);
-        break;
-      case "set-filter":
-        setImages((prev) => prev.map((img) => (img.id === image.id ? { ...img, filter: value } : img)));
-        setSelectedImage((prev) => prev?.id === image.id ? { ...prev, filter: value } : prev);
-        break;
-      case "set-radius":
-        setImages((prev) => prev.map((img) => (img.id === image.id ? { ...img, borderRadius: value } : img)));
-        setSelectedImage((prev) => prev?.id === image.id ? { ...prev, borderRadius: value } : prev);
-        break;
-      case "toggle-shadow":
-        setImages((prev) => prev.map((img) => (img.id === image.id ? { ...img, shadow: !img.shadow } : img)));
-        setSelectedImage((prev) => prev?.id === image.id ? { ...prev, shadow: !prev.shadow } : prev);
-        break;
-      case "copy":
-        navigator.clipboard.writeText(`![${image.alt}](${image.src})`);
-        break;
-      case "download": {
-        const link = document.createElement("a");
-        link.download = `${image.alt || "note-image"}.png`;
-        link.href = image.src;
-        link.click();
-        break;
-      }
-      case "delete":
-        setImages((prev) => prev.filter((img) => img.id !== image.id));
-        const newContent = editContent.replace(`![${image.alt}](${image.src})`, "");
-        setEditContent(newContent);
-        pushHistory(newContent);
-        setSelectedImage(null);
-        break;
-    }
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      applyFormat("image", dataUrl);
+      setShowImageModal(false);
+      setImageUrlInput("");
+      e.target.value = "";
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleLinkInsert = () => {
@@ -611,403 +642,348 @@ export default function TeacherNotes({ roomId, currentUserId, currentUserName, i
     }
   };
 
-  const editorPlaceholder = [
-    `# ${editTitle}`,
-    "",
-    "Start writing your notes here...",
-    "",
-    "Toolbar: 18 formatting options including headings, bold, italic, underline, strikethrough, code, lists, quotes, links, images, alignment, undo/redo",
-    "",
-    "Markdown supported: # ## ### **bold** *italic* <u>underline</u> ~~strike~~ `code` ```code``` > quote - bullet 1. numbered [link](url) ![img](url)",
-  ].join("\n");
+  const sortedNotes = [...notes].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  const activePrivate = notes.find((n) => n.id === activeNote);
+  const activeShared = sharedNotes.find((n) => n.id === activeNote);
+  const hasActive = activeNote !== null;
+  const activeColor = getNoteColor(activePrivate?.color);
+
+  // 18 Format Buttons in toolbar
+  const formatButtons = [
+    { id: "h1", icon: <Heading1 size={14} />, title: "Heading 1", shortcut: "H1" },
+    { id: "h2", icon: <Heading2 size={14} />, title: "Heading 2", shortcut: "H2" },
+    { id: "h3", icon: <Heading3 size={14} />, title: "Heading 3", shortcut: "H3" },
+    { id: "bold", icon: <Bold size={14} />, title: "Bold", shortcut: "Ctrl+B" },
+    { id: "italic", icon: <Italic size={14} />, title: "Italic", shortcut: "Ctrl+I" },
+    { id: "underline", icon: <Underline size={14} />, title: "Underline", shortcut: "Ctrl+U" },
+    { id: "strikethrough", icon: <Strikethrough size={14} />, title: "Strikethrough" },
+    { id: "code", icon: <Code size={14} />, title: "Inline Code" },
+    { id: "codeblock", icon: <Type size={14} />, title: "Code Block" },
+    { id: "quote", icon: <Quote size={14} />, title: "Blockquote" },
+    { id: "bullet", icon: <List size={14} />, title: "Bullet List" },
+    { id: "numbered", icon: <ListOrdered size={14} />, title: "Numbered List" },
+    { id: "link", icon: <LinkIcon size={14} />, title: "Insert Link" },
+    { id: "image", icon: <ImageIcon size={14} />, title: "Insert Image" },
+    { id: "align-left", icon: <AlignLeft size={14} />, title: "Align Left" },
+    { id: "align-center", icon: <AlignCenter size={14} />, title: "Align Center" },
+    { id: "align-right", icon: <AlignRight size={14} />, title: "Align Right" },
+    { id: "undo", icon: <Undo2 size={14} />, title: "Undo", shortcut: "Ctrl+Z" },
+    { id: "redo", icon: <Redo2 size={14} />, title: "Redo", shortcut: "Ctrl+Y" },
+  ];
 
   return (
     <>
-    <div className="flex h-full bg-ct-dark-black text-gray-200 font-inter">
-      {/* Sidebar List */}
-      <div className="w-[200px] border-r border-[#222222] flex flex-col bg-ct-dark-black">
-        <div className="p-3 border-b border-[#222222] flex items-center justify-between">
+    <div className="flex h-full w-full bg-ct-dark-black text-gray-200 font-inter overflow-hidden select-none">
+      {/* Sidebar List (Notes selector) */}
+      <div className="w-[220px] min-w-[220px] border-r border-[#222222] flex flex-col bg-ct-dark-black h-full overflow-hidden">
+        <div className="p-3 border-b border-[#222222] flex items-center justify-between shrink-0">
           <div className="text-[11px] font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
             <BookOpen size={13}/> Notes
           </div>
-          <button onClick={createNote} title="New note" className="p-1 bg-white text-black border-none rounded cursor-pointer hover:bg-gray-200 transition-colors">
-            <Plus size={13}/>
+          <button 
+            onClick={createNote} 
+            title="New note" 
+            className="p-1 px-2.5 bg-white text-black font-semibold text-xs border-none rounded cursor-pointer hover:bg-gray-200 transition-colors flex items-center gap-1"
+          >
+            <Plus size={13}/> New
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-1.5 flex flex-col gap-1">
           {/* Private Notes */}
-          <div className="text-[10px] text-gray-500 uppercase tracking-wider px-2 py-1 font-bold">My Notes</div>
+          <div className="text-[10px] text-gray-400 uppercase tracking-wider px-2 py-1 font-bold">My Notes ({sortedNotes.length})</div>
           {sortedNotes.length === 0 && (
-            <div className="text-[11px] text-gray-600 px-2 py-2 italic">No notes yet. Click + to create.</div>
+            <div className="text-[11px] text-gray-500 px-2 py-3 italic">No notes yet. Click + New to create one.</div>
           )}
           {sortedNotes.map((note) => {
             const noteColor = getNoteColor(note.color);
+            const isSelected = activeNote === note.id && !isActiveShared;
             return (
-            <div
-              key={note.id}
-              onClick={() => selectPrivateNote(note)}
-              className={`p-2 rounded-lg cursor-pointer transition-colors border-l-2 ${
-                activeNote === note.id && !isActiveShared ? "text-white" : "hover:bg-white/5 text-gray-300"
-              }`}
-              style={{
-                borderLeftColor: noteColor.border,
-                backgroundColor: activeNote === note.id && !isActiveShared ? noteColor.bg : undefined,
-              }}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold truncate flex-1 mr-1" style={{ color: noteColor.accent }}>{note.title}</span>
-                {note.pinned && <Pin size={10} className="shrink-0" style={{ color: noteColor.accent }} />}
+              <div
+                key={note.id}
+                onClick={() => selectPrivateNote(note)}
+                className={`p-2.5 rounded-lg cursor-pointer transition-all border-l-4 ${
+                  isSelected ? "bg-white/10 shadow-sm" : "hover:bg-white/5 text-gray-300"
+                }`}
+                style={{
+                  borderLeftColor: noteColor.border,
+                  backgroundColor: isSelected ? noteColor.bg : undefined,
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  <span className={`text-xs font-semibold truncate flex-1 mr-1 ${isSelected ? "text-white" : "text-gray-300"}`} style={{ color: isSelected ? noteColor.accent : undefined }}>
+                    {note.title || "Untitled Note"}
+                  </span>
+                  {note.pinned && <Pin size={11} className="shrink-0 text-amber-400" />}
+                </div>
+                <div className="flex justify-between items-center text-[9px] text-gray-500 mt-1.5">
+                  <span>{new Date(note.createdAt).toLocaleDateString()}</span>
+                  {note.published && <span className="text-emerald-400 font-medium">Shared</span>}
+                </div>
               </div>
-              <div className="flex justify-between items-center text-[9px] text-gray-500 mt-1">
-                <span>{new Date(note.createdAt).toLocaleDateString()}</span>
-                {note.published && <span className="text-green-400">Shared</span>}
-              </div>
-            </div>
-          );})}
+            );
+          })}
 
           {/* Shared Classroom Notes */}
           {sharedNotes.length > 0 && (
             <>
-              <div className="text-[10px] text-gray-500 uppercase tracking-wider px-2 pt-3 pb-1 font-bold flex items-center gap-1">
-                <Globe size={10}/> Classroom Notes
+              <div className="text-[10px] text-gray-400 uppercase tracking-wider px-2 pt-3 pb-1 font-bold flex items-center gap-1 border-t border-white/5 mt-2">
+                <Globe size={11}/> Classroom Notes ({sharedNotes.length})
               </div>
-              {sharedNotes.map((note) => (
-                <div
-                  key={note.id}
-                  onClick={() => selectSharedNote(note)}
-                  className={`p-2 rounded-lg cursor-pointer transition-colors ${
-                    activeNote === note.id && isActiveShared ? "bg-white/15 text-white" : "hover:bg-white/5 text-gray-300"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold truncate flex-1 mr-1">{note.title}</span>
+              {sharedNotes.map((note) => {
+                const isSelected = activeNote === note.id && isActiveShared;
+                return (
+                  <div
+                    key={note.id}
+                    onClick={() => selectSharedNote(note)}
+                    className={`p-2.5 rounded-lg cursor-pointer transition-all border-l-4 border-l-emerald-500 ${
+                      isSelected ? "bg-white/15 text-white shadow-sm" : "hover:bg-white/5 text-gray-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold truncate flex-1 mr-1">{note.title || "Untitled Note"}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[9px] text-gray-400 mt-1.5">
+                      <span>by {note.publisherName}</span>
+                      <span>{new Date(note.createdAt).toLocaleDateString()}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center text-[9px] text-gray-500 mt-1">
-                    <span>by {note.publisherName}</span>
-                    <span>{new Date(note.createdAt).toLocaleDateString()}</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </>
           )}
         </div>
       </div>
 
-      {/* Editor area */}
-      <div className="flex-1 flex flex-col">
+      {/* Editor area - Takes full height of screen */}
+      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
         {hasActive ? (
           <>
-            {/* Top Toolbar - Always Visible */}
-            <div className="p-2 border-b border-[#222222] flex items-center gap-2 flex-wrap bg-ct-dark-black sticky top-0 z-10">
-              <div className="flex gap-1 items-center mr-4">
-                {formatButtons.map((btn) => (
-                  <button
-                    key={btn.id}
-                    onClick={() => {
-                      if (btn.id === "undo") undo();
-                      else if (btn.id === "redo") redo();
-                      else if (btn.id === "link") setShowLinkModal(true);
-                      else if (btn.id === "image") setShowImageModal(true);
-                      else applyFormat(btn.id);
-                    }}
-                    title={`${btn.title}${btn.shortcut ? ` (${btn.shortcut})` : ""}`}
-                    className={`p-2 rounded-md border border-transparent cursor-pointer transition-colors flex items-center justify-center ${
-                      ["bold", "italic", "underline", "strikethrough"].includes(btn.id) ? "bg-white/5" : "bg-transparent"
-                    } hover:bg-white/10 hover:text-white text-gray-400`}
-                    disabled={isActiveShared}
-                  >
-                    {btn.icon}
-                  </button>
-                ))}
+            {/* Top WYSIWYG Toolbar */}
+            <div className="p-2 border-b border-[#222222] flex items-center gap-1 flex-wrap bg-ct-dark-black shrink-0 z-10">
+              <div className="flex gap-0.5 items-center mr-2">
+                {formatButtons.map((btn) => {
+                  const isActive = Boolean(activeFormats[btn.id]);
+                  return (
+                    <button
+                      key={btn.id}
+                      onMouseDown={(e) => {
+                        // Prevent editor from losing selection/focus
+                        e.preventDefault();
+                        if (btn.id === "link") setShowLinkModal(true);
+                        else if (btn.id === "image") setShowImageModal(true);
+                        else applyFormat(btn.id);
+                      }}
+                      title={`${btn.title}${btn.shortcut ? ` (${btn.shortcut})` : ""}`}
+                      className={`p-1.5 rounded transition-colors disabled:opacity-30 disabled:pointer-events-none cursor-pointer ${
+                        isActive 
+                          ? "bg-white/25 text-white font-bold shadow-inner" 
+                          : "text-gray-400 hover:bg-white/10 hover:text-white"
+                      }`}
+                      disabled={isActiveShared}
+                    >
+                      {btn.icon}
+                    </button>
+                  );
+                })}
               </div>
+
+              {/* Color Picker Toggle */}
+              {!isActiveShared && activePrivate && (
+                <div className="relative mr-2">
+                  <button
+                    onClick={() => setShowColorPicker(!showColorPicker)}
+                    title="Change Note Color"
+                    className="p-1.5 rounded hover:bg-white/10 text-gray-400 hover:text-white transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Palette size={14} style={{ color: activeColor.border }} />
+                  </button>
+                  {showColorPicker && (
+                    <div className="absolute top-full left-0 mt-1 p-2 bg-[#161622] border border-white/20 rounded-xl shadow-2xl z-50 flex gap-1.5">
+                      {NOTE_COLORS.map((c) => (
+                        <button
+                          key={c.id}
+                          onClick={() => setNoteColor(activePrivate.id, c.id)}
+                          title={c.label}
+                          className={`w-5 h-5 rounded-full border-2 transition-transform cursor-pointer ${
+                            activePrivate.color === c.id ? "scale-125 border-white shadow-lg" : "border-transparent opacity-70 hover:opacity-100 hover:scale-110"
+                          }`}
+                          style={{ backgroundColor: c.border }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               
-              <div className="flex-1 min-w-[150px] flex items-center gap-2">
+              {/* Title input */}
+              <div className="flex-1 min-w-[140px] flex items-center gap-2">
                 {isActiveShared ? (
-                  <div className="flex-1 text-sm font-bold text-white flex items-center gap-1.5">
-                    <Globe size={14} className="text-green-400" />
-                    <span>{editTitle}</span>
-                    <span className="text-[10px] text-gray-500 font-normal">Shared by {activeShared?.publisherName}</span>
+                  <div className="flex-1 text-sm font-bold text-white flex items-center gap-1.5 truncate">
+                    <Globe size={14} className="text-emerald-400 shrink-0" />
+                    <span className="truncate">{editTitle}</span>
+                    <span className="text-[10px] text-gray-400 font-normal shrink-0">by {activeShared?.publisherName}</span>
                   </div>
                 ) : (
                   <input
                     value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
+                    onChange={(e) => handleTitleChange(e.target.value)}
                     onBlur={saveActiveNote}
                     placeholder="Note title..."
-                    className="flex-1 min-w-[120px] bg-transparent border-none outline-none text-sm font-bold text-white"
+                    className="w-full bg-transparent border-none outline-none text-sm font-bold text-white focus:ring-0 placeholder-gray-500"
                   />
                 )}
               </div>
 
-              <div className="flex gap-1 items-center">
+              {/* Action buttons */}
+              <div className="flex gap-1.5 items-center">
                 {isActiveShared ? (
                   <>
-                    <button onClick={copyToClipboard} title="Copy to Clipboard"
-                      className="px-3 py-1.5 border border-[#333] rounded-md bg-transparent text-gray-300 cursor-pointer text-xs flex items-center gap-1 hover:text-white">
-                      {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />} {copied ? "Copied" : "Copy"}
+                    <button onClick={copyToClipboard} title="Copy Markdown"
+                      className="px-2.5 py-1 border border-[#333] rounded-md bg-transparent text-gray-300 cursor-pointer text-xs flex items-center gap-1 hover:text-white">
+                      {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />} {copied ? "Copied" : "Copy"}
                     </button>
                     <button onClick={downloadNote} title="Download Markdown"
-                      className="px-3 py-1.5 border border-[#333] rounded-md bg-transparent text-gray-300 cursor-pointer text-xs flex items-center gap-1 hover:text-white">
+                      className="px-2.5 py-1 border border-[#333] rounded-md bg-transparent text-gray-300 cursor-pointer text-xs flex items-center gap-1 hover:text-white">
                       <Download size={12} /> Save
                     </button>
                   </>
                 ) : (
                   <>
-                    <button onClick={() => setPreview((p) => !p)} title={preview ? "Edit" : "Preview"}
-                      className={`px-3 py-1.5 border border-[#333] rounded-md text-xs flex items-center gap-1 cursor-pointer transition-colors ${
-                        preview ? "bg-white/20 text-white" : "bg-transparent text-gray-400 hover:text-white"
-                      }`}>
-                      {preview ? <Edit3 size={12} /> : <Eye size={12} />} {preview ? "Edit" : "Preview"}
-                    </button>
-                    <button onClick={() => activePrivate && togglePin(activePrivate.id)} title="Pin" className="bg-transparent border-none p-1 cursor-pointer">
-                      {activePrivate?.pinned ? <PinOff size={14} className="text-white" /> : <Pin size={14} className="text-gray-500 hover:text-white" />}
+                    <button onClick={() => activePrivate && togglePin(activePrivate.id)} title={activePrivate?.pinned ? "Unpin Note" : "Pin Note"} className="bg-transparent border-none p-1.5 cursor-pointer rounded hover:bg-white/10">
+                      {activePrivate?.pinned ? <PinOff size={14} className="text-amber-400" /> : <Pin size={14} className="text-gray-500 hover:text-white" />}
                     </button>
                     <button onClick={downloadNote} title="Download Markdown"
-                      className="p-2 border border-[#333] rounded-md bg-transparent text-gray-400 cursor-pointer hover:text-white">
-                      <Download size={14} />
+                      className="p-1.5 border border-[#333] rounded-md bg-transparent text-gray-400 cursor-pointer hover:text-white">
+                      <Download size={13} />
                     </button>
                     {(isTeacher || activePrivate?.published) && activePrivate && (
                       <button onClick={() => togglePublish(activePrivate.id)} title="Publish to classroom"
-                        className={`px-3 py-1.5 border border-[#333] rounded-md text-xs flex items-center gap-1 cursor-pointer transition-colors ${
-                          activePrivate.published ? "bg-green-500/20 text-green-400 border-green-500/40" : "bg-transparent text-gray-400 hover:text-white"
+                        className={`px-2.5 py-1 border rounded-md text-xs flex items-center gap-1 cursor-pointer transition-colors ${
+                          activePrivate.published ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40" : "border-[#333] bg-transparent text-gray-400 hover:text-white"
                         }`}>
                         <Send size={12} /> {activePrivate.published ? "Shared" : "Share"}
                       </button>
                     )}
-                    <button onClick={() => activePrivate && deleteNote(activePrivate.id)} title="Delete"
-                      className="p-2 border border-[#333] rounded-md bg-transparent text-red-400 cursor-pointer hover:bg-red-500/20">
-                      <Trash2 size={14} />
+                    <button onClick={() => activePrivate && deleteNote(activePrivate.id)} title="Delete Note"
+                      className="p-1.5 border border-[#333] rounded-md bg-transparent text-red-400 cursor-pointer hover:bg-red-500/20">
+                      <Trash2 size={13} />
                     </button>
                   </>
                 )}
               </div>
             </div>
 
-            {/* Image Studio Modal */}
-            {selectedImage && !preview && (
-              <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div className="bg-[#141416] border border-white/20 rounded-2xl p-5 w-full max-w-lg shadow-[0_25px_60px_rgba(0,0,0,0.9)] flex flex-col gap-4 text-xs select-none">
-                  {/* Top Bar */}
-                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                    <span className="font-bold text-white text-sm flex items-center gap-2">
-                      <Image size={15} className="text-sky-400" />
-                      <span>Note Image Studio</span>
-                    </span>
-                    <button onClick={() => setSelectedImage(null)} className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10">✕</button>
-                  </div>
-
-                  {/* Live Image Preview */}
-                  <div className="flex items-center justify-center min-h-[180px] max-h-64 bg-black/60 rounded-xl p-4 border border-white/10 overflow-hidden relative">
-                    <img 
-                      src={selectedImage.src} 
-                      alt={selectedImage.alt} 
-                      className="max-w-full max-h-56 object-contain transition-all duration-200"
-                      style={{
-                        transform: `rotate(${selectedImage.rotation}deg) scaleX(${selectedImage.flipH ? -1 : 1}) scaleY(${selectedImage.flipV ? -1 : 1})`,
-                        filter: selectedImage.filter === "grayscale" ? "grayscale(100%)"
-                          : selectedImage.filter === "sepia" ? "sepia(100%)"
-                          : selectedImage.filter === "invert" ? "invert(100%)"
-                          : selectedImage.filter === "blur" ? "blur(3px)"
-                          : selectedImage.filter === "brightness" ? "brightness(135%)"
-                          : selectedImage.filter === "contrast" ? "contrast(150%)"
-                          : "none",
-                        borderRadius: `${selectedImage.borderRadius ?? 8}px`,
-                        boxShadow: selectedImage.shadow ? "0 12px 32px rgba(0,0,0,0.7)" : "none",
-                        opacity: selectedImage.opacity ?? 1,
-                      }}
-                    />
-                  </div>
-
-                  {/* Sizing & Transform */}
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1 border border-white/10">
-                      <button onClick={() => handleImageAction("size-small", selectedImage)} className="px-2.5 py-1 rounded hover:bg-white/15 text-[11px] text-gray-200">Small</button>
-                      <button onClick={() => handleImageAction("size-medium", selectedImage)} className="px-2.5 py-1 rounded hover:bg-white/15 text-[11px] text-gray-200">Medium</button>
-                      <button onClick={() => handleImageAction("size-full", selectedImage)} className="px-2.5 py-1 rounded hover:bg-white/15 text-[11px] text-gray-200">Full</button>
-                    </div>
-
-                    <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1 border border-white/10">
-                      <button onClick={() => handleImageAction("rotate-left", selectedImage)} title="Rotate Left (-90°)" className="p-1.5 rounded hover:bg-white/15 text-gray-200"><RotateCcw size={13}/></button>
-                      <button onClick={() => handleImageAction("rotate-right", selectedImage)} title="Rotate Right (+90°)" className="p-1.5 rounded hover:bg-white/15 text-gray-200"><RotateCw size={13}/></button>
-                      <button onClick={() => handleImageAction("flip-h", selectedImage)} title="Flip Horizontal" className={`p-1.5 rounded hover:bg-white/15 ${selectedImage.flipH ? "bg-sky-500/30 text-sky-300" : "text-gray-200"}`}><FlipHorizontal size={13}/></button>
-                      <button onClick={() => handleImageAction("flip-v", selectedImage)} title="Flip Vertical" className={`p-1.5 rounded hover:bg-white/15 ${selectedImage.flipV ? "bg-sky-500/30 text-sky-300" : "text-gray-200"}`}><FlipVertical size={13}/></button>
-                    </div>
-                  </div>
-
-                  {/* Visual Filters */}
-                  <div className="flex flex-wrap items-center gap-1 bg-white/5 rounded-lg p-1 border border-white/10">
-                    <button onClick={() => handleImageAction("set-filter", selectedImage, "none")} className={`px-2 py-1 rounded text-[10px] ${!selectedImage.filter || selectedImage.filter === "none" ? "bg-white text-black font-bold" : "text-gray-300 hover:text-white"}`}>Norm</button>
-                    <button onClick={() => handleImageAction("set-filter", selectedImage, "grayscale")} className={`px-2 py-1 rounded text-[10px] ${selectedImage.filter === "grayscale" ? "bg-white text-black font-bold" : "text-gray-300 hover:text-white"}`}>B&W</button>
-                    <button onClick={() => handleImageAction("set-filter", selectedImage, "sepia")} className={`px-2 py-1 rounded text-[10px] ${selectedImage.filter === "sepia" ? "bg-white text-black font-bold" : "text-gray-300 hover:text-white"}`}>Sepia</button>
-                    <button onClick={() => handleImageAction("set-filter", selectedImage, "invert")} className={`px-2 py-1 rounded text-[10px] ${selectedImage.filter === "invert" ? "bg-white text-black font-bold" : "text-gray-300 hover:text-white"}`}>Invert</button>
-                    <button onClick={() => handleImageAction("set-filter", selectedImage, "brightness")} className={`px-2 py-1 rounded text-[10px] ${selectedImage.filter === "brightness" ? "bg-white text-black font-bold" : "text-gray-300 hover:text-white"}`}>Bright</button>
-                    <button onClick={() => handleImageAction("set-filter", selectedImage, "contrast")} className={`px-2 py-1 rounded text-[10px] ${selectedImage.filter === "contrast" ? "bg-white text-black font-bold" : "text-gray-300 hover:text-white"}`}>Contrast</button>
-                  </div>
-
-                  {/* Corner Radius & Shadow */}
-                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/10">
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => handleImageAction("set-radius", selectedImage, 0)} className={`px-2 py-1 rounded text-[10px] ${!selectedImage.borderRadius ? "bg-white/20 text-white font-bold" : "text-gray-300"}`}>Square</button>
-                      <button onClick={() => handleImageAction("set-radius", selectedImage, 12)} className={`px-2 py-1 rounded text-[10px] ${selectedImage.borderRadius === 12 ? "bg-white/20 text-white font-bold" : "text-gray-300"}`}>Rounded</button>
-                      <button onClick={() => handleImageAction("set-radius", selectedImage, 28)} className={`px-2 py-1 rounded text-[10px] ${selectedImage.borderRadius === 28 ? "bg-white/20 text-white font-bold" : "text-gray-300"}`}>Pill</button>
-                      <button onClick={() => handleImageAction("toggle-shadow", selectedImage)} className={`px-2 py-1 rounded text-[10px] ${selectedImage.shadow ? "bg-sky-500/30 text-sky-300 font-bold" : "text-gray-300"}`}>Shadow</button>
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => handleImageAction("copy", selectedImage)} title="Copy Markdown" className="p-1.5 rounded bg-white/10 hover:bg-white/20 text-gray-200"><CopyIcon size={13}/></button>
-                      <button onClick={() => handleImageAction("download", selectedImage)} title="Download Image" className="p-1.5 rounded bg-white/10 hover:bg-white/20 text-gray-200"><Download size={13}/></button>
-                      <button onClick={() => handleImageAction("delete", selectedImage)} title="Delete Image" className="p-1.5 rounded bg-red-500/20 hover:bg-red-500/30 text-red-400"><TrashIcon size={13}/></button>
-                      <button onClick={() => setSelectedImage(null)} className="px-3 py-1 bg-white text-black font-bold rounded-lg hover:bg-gray-200 text-xs ml-1">Done</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Content */}
-            <div className="flex-1 overflow-auto" style={{ backgroundColor: activeColor.bg }}>
-              {preview ? (
-                <div
-                  className="p-5 text-sm leading-relaxed text-gray-300"
-                  dangerouslySetInnerHTML={{ __html: renderMarkdown(editContent, activeColor.accent) }}
-                />
-) : (
-                <>
-                <textarea
-                  ref={textareaRef}
-                  value={editContent}
-                  onChange={(e) => {
-                    setEditContent(e.target.value);
-                    pushHistory(e.target.value);
-                  }}
-                  onPaste={handlePasteImage}
-                  onBlur={saveActiveNote}
-                  placeholder={editorPlaceholder}
-                  className="w-full bg-transparent border-none outline-none text-gray-300 text-sm leading-relaxed p-4 resize-none font-mono box-border"
-                  style={{ color: activeColor.accent, minHeight: "120px", flex: 1 }}
-                />
-                {images.length > 0 && (
-                  <div className="flex flex-wrap gap-2 p-3 border-t border-[#222]">
-                    {images.map((img) => (
-                      <div key={img.id} className="relative group cursor-pointer p-1 rounded-xl hover:bg-white/5 transition-colors" onClick={() => setSelectedImage(img)}>
-                        <img
-                          src={img.src}
-                          alt={img.alt}
-                          className="w-20 h-20 object-cover border border-white/10 group-hover:border-sky-400 transition-all"
-                          style={{
-                            transform: `rotate(${img.rotation}deg) scaleX(${img.flipH ? -1 : 1}) scaleY(${img.flipV ? -1 : 1})`,
-                            filter: img.filter === "grayscale" ? "grayscale(100%)"
-                              : img.filter === "sepia" ? "sepia(100%)"
-                              : img.filter === "invert" ? "invert(100%)"
-                              : img.filter === "blur" ? "blur(2px)"
-                              : img.filter === "brightness" ? "brightness(135%)"
-                              : img.filter === "contrast" ? "contrast(150%)"
-                              : "none",
-                            borderRadius: `${img.borderRadius ?? 8}px`,
-                            boxShadow: img.shadow ? "0 4px 12px rgba(0,0,0,0.5)" : "none",
-                            opacity: img.opacity ?? 1,
-                          }}
-                        />
-                        <div className="absolute bottom-1 left-1 right-1 bg-black/80 text-[9px] text-gray-200 text-center py-0.5 rounded-b-lg truncate px-1">{img.alt}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                </>
-              )}
+            {/* WYSIWYG Content Area - 100% height */}
+            <div 
+              className="flex-1 flex flex-col h-full min-h-0 overflow-hidden relative cursor-text" 
+              style={{ backgroundColor: activeColor.bg }}
+              onClick={() => {
+                if (editorRef.current && !isActiveShared) {
+                  editorRef.current.focus();
+                }
+              }}
+            >
+              <div
+                ref={editorRef}
+                contentEditable={!isActiveShared}
+                suppressContentEditableWarning
+                onInput={handleEditorInput}
+                onKeyUp={updateActiveFormats}
+                onMouseUp={updateActiveFormats}
+                onPaste={handlePaste}
+                onBlur={saveActiveNote}
+                data-placeholder="Start typing your notes here..."
+                data-empty={!editContent || editContent === "<br>" || editContent === "<div><br></div>" ? "true" : undefined}
+                className="rich-editor w-full flex-1 h-full min-h-0 outline-none text-gray-200 text-sm leading-relaxed p-6 overflow-y-auto box-border select-text font-sans"
+                style={{ color: activeColor.accent }}
+              />
             </div>
 
             {/* Status bar */}
-            <div className="px-3.5 py-1 border-t border-[#222222] text-[10px] text-gray-500 flex justify-between" style={{ backgroundColor: activeColor.bg }}>
-              <span>{isActiveShared ? "Shared Notes" : saving ? "Saving..." : "Saved"} · Markdown</span>
-              <span>{editContent.split(/\s+/).filter(Boolean).length} words</span>
+            <div className="px-4 py-1.5 border-t border-[#222222] text-[10px] text-gray-500 flex justify-between shrink-0 select-none" style={{ backgroundColor: activeColor.bg }}>
+              <div className="flex items-center gap-2">
+                <span>{isActiveShared ? "Shared Classroom Note (Read Only)" : saving ? "Saving..." : "Saved"} · Rich Text</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span>{editContent.replace(/<[^>]*>/g, " ").split(/\s+/).filter(Boolean).length} words</span>
+                <span>·</span>
+                <span>{editContent.replace(/<[^>]*>/g, "").length} chars</span>
+              </div>
             </div>
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center flex-col gap-3 text-gray-500">
-            <BookOpen size={36} className="opacity-30" />
-            <p className="text-xs">Select a note or create a new one</p>
-            <button onClick={createNote}
-              className="px-5 py-2 bg-white border-none rounded-lg text-black cursor-pointer text-xs font-bold hover:bg-gray-200 transition-colors">
-              + New Note
+            <BookOpen size={40} className="opacity-25" />
+            <p className="text-xs">No note selected</p>
+            <button 
+              onClick={createNote}
+              className="px-5 py-2 bg-white border-none rounded-lg text-black cursor-pointer text-xs font-bold hover:bg-gray-200 transition-colors shadow-md"
+            >
+              + Create Note
             </button>
           </div>
         )}
       </div>
     </div>
 
-      {/* Image Upload Modal */}
-      {showImageModal && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-          <div className="bg-ct-dark-black border border-white/20 rounded-xl p-6 w-full max-w-md">
-            <h3 className="font-bold text-white mb-4">Insert Image</h3>
+    {/* Image Upload Modal */}
+    {showImageModal && (
+      <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+        <div className="bg-ct-dark-black border border-white/20 rounded-xl p-6 w-full max-w-md">
+          <h3 className="font-bold text-white mb-4 text-sm">Insert Image</h3>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleImageUpload}
+            className="w-full mb-4 p-3 bg-[#111] border border-[#333] rounded-lg text-white text-xs cursor-pointer"
+          />
+          <div className="mb-4">
+            <label className="text-xs text-gray-400 block mb-2">Or paste image URL</label>
             <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
-              className="w-full mb-4 p-3 bg-[#111] border border-[#333] rounded-lg text-white"
+              type="url"
+              value={imageUrlInput}
+              onChange={(e) => setImageUrlInput(e.target.value)}
+              placeholder="https://example.com/image.png"
+              className="w-full p-2.5 bg-[#111] border border-[#333] rounded-lg text-white outline-none focus:border-white/50 text-xs"
             />
-            <div className="mb-4">
-              <label className="text-sm text-gray-400 block mb-2">Or paste image URL</label>
-              <input
-                type="url"
-                value={imageUrlInput}
-                onChange={(e) => setImageUrlInput(e.target.value)}
-                placeholder="https://example.com/image.png"
-                className="w-full p-3 bg-[#111] border border-[#333] rounded-lg text-white outline-none focus:border-white/50"
-              />
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => {
-                if (imageUrlInput) {
-                  insertImageIntoNote(imageUrlInput, "Image");
-                  setImageUrlInput("");
-                }
-              }} className="flex-1 py-2 bg-white text-black font-bold rounded-lg hover:bg-gray-200">Insert</button>
-              <button onClick={() => { setShowImageModal(false); setImageUrlInput(""); }} className="flex-1 py-2 border border-[#333] text-gray-400 rounded-lg hover:bg-white/5">Cancel</button>
-            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => {
+              if (imageUrlInput) {
+                applyFormat("image", imageUrlInput);
+                setShowImageModal(false);
+                setImageUrlInput("");
+              }
+            }} className="flex-1 py-2 bg-white text-black font-bold rounded-lg hover:bg-gray-200 text-xs cursor-pointer">Insert</button>
+            <button onClick={() => { setShowImageModal(false); setImageUrlInput(""); }} className="flex-1 py-2 border border-[#333] text-gray-400 rounded-lg hover:bg-white/5 text-xs cursor-pointer">Cancel</button>
           </div>
         </div>
-      )}
-
-      {/* Link Insert Modal */}
-      {showLinkModal && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-          <div className="bg-ct-dark-black border border-white/20 rounded-xl p-6 w-full max-w-md">
-            <h3 className="font-bold text-white mb-4">Insert Link</h3>
-            <div className="mb-4">
-              <label className="text-sm text-gray-400 block mb-2">Link Text</label>
-              <input
-                type="text"
-                value={linkText}
-                onChange={(e) => setLinkText(e.target.value)}
-                placeholder="Link text"
-                className="w-full p-3 bg-[#111] border border-[#333] rounded-lg text-white outline-none focus:border-white/50"
-              />
-            </div>
-            <div className="mb-4">
-              <label className="text-sm text-gray-400 block mb-2">URL</label>
-              <input
-                type="url"
-                value={linkUrl}
-                onChange={(e) => setLinkUrl(e.target.value)}
-                placeholder="https://example.com"
-                className="w-full p-3 bg-[#111] border border-[#333] rounded-lg text-white outline-none focus:border-white/50"
-              />
-            </div>
-            <div className="flex gap-2">
-              <button onClick={handleLinkInsert} className="flex-1 py-2 bg-white text-black font-bold rounded-lg hover:bg-gray-200">Insert Link</button>
-              <button onClick={() => { setShowLinkModal(false); setLinkUrl(""); setLinkText(""); }} className="flex-1 py-2 border border-[#333] text-gray-400 rounded-lg hover:bg-white/5">Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Status bar with history indicator */}
-      <div className="fixed bottom-4 left-4 z-20 bg-black/80 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-gray-400">
-        History: {historyIndex + 1} / {history.length} · <kbd className="px-1.5 py-0.5 bg-white/10 rounded">Ctrl+Z</kbd> Undo · <kbd className="px-1.5 py-0.5 bg-white/10 rounded">Ctrl+Y</kbd> Redo
       </div>
+    )}
+
+    {/* Link Insert Modal */}
+    {showLinkModal && (
+      <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+        <div className="bg-ct-dark-black border border-white/20 rounded-xl p-6 w-full max-w-md">
+          <h3 className="font-bold text-white mb-4 text-sm">Insert Link</h3>
+          <div className="mb-4">
+            <label className="text-xs text-gray-400 block mb-1.5">URL</label>
+            <input
+              type="url"
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              placeholder="https://example.com"
+              className="w-full p-2.5 bg-[#111] border border-[#333] rounded-lg text-white outline-none focus:border-white/50 text-xs"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleLinkInsert} className="flex-1 py-2 bg-white text-black font-bold rounded-lg hover:bg-gray-200 text-xs cursor-pointer">Insert Link</button>
+            <button onClick={() => { setShowLinkModal(false); setLinkUrl(""); setLinkText(""); }} className="flex-1 py-2 border border-[#333] text-gray-400 rounded-lg hover:bg-white/5 text-xs cursor-pointer">Cancel</button>
+          </div>
+        </div>
+      </div>
+    )}
     </>
   );
 }

@@ -127,7 +127,7 @@ export default function ExploreHub() {
         </div>
 
         {loading ? (
-          <div className="flex justify-center items-center py-20 text-gray-400">Loading data from Supabase...</div>
+          <div className="flex justify-center items-center py-20 text-gray-400">Loading community projects...</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             

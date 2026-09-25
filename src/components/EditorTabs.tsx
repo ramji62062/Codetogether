@@ -13,6 +13,8 @@ type EditorTabsProps = {
   onTabSelect: (name: string) => void;
   onTabClose: (name: string) => void;
   onOpenLiveServer?: () => void;
+  isLiveServerOn?: boolean;
+  liveServerPort?: number;
 };
 
 const LANG_LABELS: Record<string, string> = {
@@ -36,7 +38,7 @@ function shortName(fullPath: string) {
   return fullPath.split("/").pop() || fullPath;
 }
 
-export default function EditorTabs({ tabs, activeTab, onTabSelect, onTabClose, onOpenLiveServer }: EditorTabsProps) {
+export default function EditorTabs({ tabs, activeTab, onTabSelect, onTabClose, onOpenLiveServer, isLiveServerOn, liveServerPort }: EditorTabsProps) {
   if (tabs.length === 0) return null;
 
   return (
@@ -85,11 +87,15 @@ export default function EditorTabs({ tabs, activeTab, onTabSelect, onTabClose, o
         <div className="flex items-center px-2 shrink-0 border-l border-[#252526]">
           <button
             onClick={onOpenLiveServer}
-            title="Open with Live Server (Live reload in browser)"
-            className="flex items-center gap-1 px-2.5 py-1 bg-emerald-600/15 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded text-[11px] font-semibold transition-colors cursor-pointer"
+            title={isLiveServerOn ? `Live Server active on Port ${liveServerPort} — click to open in browser` : "Open with Live Server (Live reload in browser)"}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-semibold transition-colors cursor-pointer border ${
+              isLiveServerOn
+                ? "bg-emerald-600/30 text-emerald-300 hover:bg-emerald-600/40 border-emerald-500/40 shadow-sm"
+                : "bg-emerald-600/15 hover:bg-emerald-600/30 text-emerald-300 border-emerald-500/30"
+            }`}
           >
-            <Radio size={11} className="text-emerald-400 animate-pulse" />
-            <span>Go Live</span>
+            <Radio size={11} className={isLiveServerOn ? "text-emerald-400 animate-pulse" : "text-emerald-400"} />
+            <span>{isLiveServerOn && liveServerPort ? `Port : ${liveServerPort}` : "Go Live"}</span>
             <ExternalLink size={10} className="text-emerald-400" />
           </button>
         </div>

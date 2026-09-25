@@ -441,7 +441,7 @@ export default function DashboardPage() {
       media_url: mediaUrl || null,
     });
     if (error) {
-      alert("Message table is not ready yet. Add direct_messages in Supabase to enable inbox messages.");
+      alert("Unable to send message at this time. Please try again later.");
       return;
     }
     setMessageText("");
@@ -480,7 +480,7 @@ export default function DashboardPage() {
       rating: 5,
       content: content.trim(),
     });
-    alert(error ? "Review table is not ready yet. Add profile_reviews in Supabase to enable reviews." : "Review posted.");
+    alert(error ? "Unable to submit review at this time." : "Review posted successfully.");
   }
 
   const openLibraryItem = (item: any) => {
@@ -642,7 +642,7 @@ export default function DashboardPage() {
 
   const STEPS = [
     { id: "create", title: "Create Project", desc: "Start a new workspace", icon: <Plus size={24} color="#ffffff" /> },
-    { id: "code", title: "Write Code", desc: "Monaco Editor + AI", icon: <Code2 size={24} color="#ffffff" /> },
+    { id: "code", title: "Write Code", desc: "Code Editor + AI", icon: <Code2 size={24} color="#ffffff" /> },
     { id: "collaborate", title: "Collaborate", desc: "Real-time with team", icon: <Users size={24} color="#10B981" /> },
     { id: "preview", title: "Live Preview", desc: "See changes instantly", icon: <Zap size={24} color="#F59E0B" /> },
     { id: "share", title: "Share", desc: "Deploy anywhere", icon: <Globe size={24} color="#EF4444" /> },

@@ -11,12 +11,12 @@ import {
 } from "lucide-react";
 
 const FEATURES = [
-  { icon: <Code2 size={22}/>, title: "Monaco Editor", desc: "Full VS Code editor with syntax highlighting, IntelliSense & multi-file tabs." },
-  { icon: <Users size={22}/>, title: "Real-time Collaboration", desc: "Live cursor sync, presence indicators, and instant code sharing via Supabase." },
-  { icon: <Video size={22}/>, title: "Video & Audio", desc: "Built-in WebRTC video calls and screen share, powered by this project." },
-  { icon: <Terminal size={22}/>, title: "Interactive Terminal", desc: "Run code live in an xterm.js terminal. Python, JS, Java, C++ & more." },
-  { icon: <GitBranch size={22}/>, title: "Multi-file Projects", desc: "Full VS Code-style file explorer with folders, rename, drag-drop." },
-  { icon: <Zap size={22}/>, title: "AI Code Assistant", desc: "Claude-powered AI that explains, debugs, and optimizes your code in real time." },
+  { icon: <Code2 size={22}/>, title: "Cloud Code Editor", desc: "Fast, distraction-free code editor with syntax highlighting, intelligent auto-complete & multi-file tabs." },
+  { icon: <Users size={22}/>, title: "Real-time Collaboration", desc: "Live cursor sync, presence indicators, and instant code sharing across your team." },
+  { icon: <Video size={22}/>, title: "Video & Audio", desc: "Built-in crystal clear video calls and screen sharing right inside your coding room." },
+  { icon: <Terminal size={22}/>, title: "Interactive Terminal", desc: "Run code live in a built-in terminal. Python, JavaScript, Java, C++ & more." },
+  { icon: <GitBranch size={22}/>, title: "Multi-file Projects", desc: "Complete workspace file explorer with folders, rename, and drag-and-drop." },
+  { icon: <Zap size={22}/>, title: "AI Code Assistant", desc: "Intelligent AI assistant that explains, debugs, and optimizes your code in real time." },
 ];
 
 const ACCOUNT_TYPES = [
@@ -354,7 +354,7 @@ export default function Home() {
               <Link key={l.label} href={l.href} className="text-ct-dimmer text-sm no-underline hover:text-white transition-colors">{l.label}</Link>
             ))}
           </div>
-          <p className="text-ct-subtle text-[13px]">© 2026 CodeTogether. Built with Next.js · Supabase · WebRTC </p>
+          <p className="text-ct-subtle text-[13px]">© 2026 CodeTogether. Collaborative Development Platform.</p>
         </div>
       </footer>
 

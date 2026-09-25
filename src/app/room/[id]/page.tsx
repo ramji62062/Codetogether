@@ -437,6 +437,27 @@ export default function RoomPage() {
       } else {
         initialFiles = getDefaultFiles(data.language || "javascript").map(normalizeFileItem);
       }
+
+      // Check if any existing disk workspace files exist and merge them
+      try {
+        const diskRes = await fetch(`/api/workspace/${roomId}/__files?t=${Date.now()}`);
+        if (diskRes.ok) {
+          const diskData = await diskRes.json();
+          if (Array.isArray(diskData.files) && diskData.files.length > 0) {
+            const byPath = new Map(initialFiles.map(f => [normalizePath(f.path || f.name), f]));
+            diskData.files.forEach((df: any) => {
+              const p = normalizePath(df.path || df.name);
+              if (!byPath.has(p)) {
+                byPath.set(p, normalizeFileItem(df));
+              }
+            });
+            initialFiles = Array.from(byPath.values()).sort((a, b) => 
+              normalizePath(a.path || a.name).localeCompare(normalizePath(b.path || b.name))
+            );
+          }
+        }
+      } catch {}
+
       setFiles(initialFiles);
       const firstFile = initialFiles.find(f => !f.isFolder);
       setActiveFile(firstFile?.name || "");
@@ -466,24 +487,34 @@ export default function RoomPage() {
     if (!payload || saveInFlightRef.current) return false;
     saveInFlightRef.current = true;
     let ok = false;
-    for (let attempt = 0; attempt < 4 && !ok; attempt++) {
+
+    // 1. Persist directly to server disk workspace
+    try {
+      const res = await fetch(`/api/workspace/${roomId}/__save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ files: payload }),
+      });
+      if (res.ok) ok = true;
+    } catch {}
+
+    // 2. Persist to Supabase database
+    for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const { error } = await supabase.from("rooms").update({ files_json: payload }).eq("id", roomId);
         if (!error) { ok = true; break; }
-        throw new Error(error.message);
       } catch {
-        if (attempt < 3) {
-          fetch("/api/reliability", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "save_retry" }), keepalive: true }).catch(() => {});
-          await new Promise((r) => setTimeout(r, 600 * Math.pow(2, attempt) + Math.random() * 250));
+        if (attempt < 2) {
+          await new Promise((r) => setTimeout(r, 400 * Math.pow(2, attempt)));
         }
       }
     }
+
     saveInFlightRef.current = false;
     if (ok) {
       if (pendingSaveRef.current === payload) pendingSaveRef.current = null;
       setSyncStatus("saved");
     } else {
-      fetch("/api/reliability", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "save_failed" }), keepalive: true }).catch(() => {});
       setSyncStatus("failed");
     }
     return ok;
@@ -825,23 +856,43 @@ export default function RoomPage() {
         setActiveFile(nextFile.name);
         setOpenTabs((o) => o.includes(nextFile.name) ? o : [...o, nextFile.name]);
       }
+      saveFilesToDb(next);
+      void flushFilesSave();
+      fetch(`/api/workspace/${roomId}/__save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ files: [nextFile] }),
+      }).catch(() => {});
       // Broadcast structural change to peers
       roomChannelRef.current?.send({ type: "broadcast", event: "files-update", payload: { files: next, userId: currentUserId } });
       return next;
     });
-  }, [currentUserId]);
+  }, [currentUserId, saveFilesToDb, flushFilesSave, roomId]);
 
   const handleTerminalFilesSync = useCallback((syncedFiles: FileItem[]) => {
+    if (!syncedFiles || syncedFiles.length === 0) return;
     const normalized = syncedFiles.map(normalizeFileItem);
     setFiles((prev) => {
       const byPath = new Map(prev.map((file) => [normalizePath(file.path || file.name), file]));
       normalized.forEach((file) => byPath.set(normalizePath(file.path || file.name), file));
       const next = Array.from(byPath.values()).sort((a, b) => normalizePath(a.path || a.name).localeCompare(normalizePath(b.path || b.name)));
+      
+      // Permanently save to Supabase DB & Workspace Disk
+      saveFilesToDb(next);
+      void flushFilesSave();
+
+      fetch(`/api/workspace/${roomId}/__save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ files: next }),
+      }).catch(() => {});
+
       // Broadcast so peers see new/updated files from terminal
       roomChannelRef.current?.send({ type: "broadcast", event: "files-update", payload: { files: next, userId: currentUserId } });
       return next;
     });
-  }, [currentUserId]);
+    addToast(`Synced & permanently saved ${syncedFiles.length} files to workspace ✨`, "success");
+  }, [currentUserId, addToast, saveFilesToDb, flushFilesSave, roomId]);
 
   const handleServerReady = useCallback((url: string, port: number) => {
     setLiveServerUrl(url);
@@ -854,11 +905,22 @@ export default function RoomPage() {
       const next = prev.filter((f) => !isPathInside(f.path || f.name, path));
       setOpenTabs((o) => o.filter((t) => !isPathInside(t, path)));
       if (isPathInside(activeFile, path)) setActiveFile(next.find(f => !f.isFolder)?.name || "");
+      
+      // Permanently remove from database & workspace disk
+      saveFilesToDb(next);
+      void flushFilesSave();
+
+      fetch(`/api/workspace/${roomId}/__delete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path }),
+      }).catch(() => {});
+
       // Broadcast structural change to peers
       roomChannelRef.current?.send({ type: "broadcast", event: "files-update", payload: { files: next, userId: currentUserId } });
       return next;
     });
-  }, [activeFile, currentUserId]);
+  }, [activeFile, currentUserId, saveFilesToDb, flushFilesSave, roomId]);
 
   // Sync files to DB only (no broadcast here — code changes use code-update event)
   useEffect(() => {
@@ -879,9 +941,23 @@ export default function RoomPage() {
     setOpenTabs((prev) => prev.map((t) => isPathInside(t, oldPath) ? (t === oldPath ? newPath : normalizePath(`${newPath}/${t.slice(oldPath.length + 1)}`)) : t));
     if (isPathInside(activeFile, oldPath)) setActiveFile(activeFile === oldPath ? newPath : normalizePath(`${newPath}/${activeFile.slice(oldPath.length + 1)}`));
     setBreakpoints((prev) => prev.map((bp) => isPathInside(bp.file, oldPath) ? { ...bp, file: bp.file === oldPath ? newPath : normalizePath(`${newPath}/${bp.file.slice(oldPath.length + 1)}`) } : bp));
+    
     saveFilesToDb(next);
+    void flushFilesSave();
+
+    fetch(`/api/workspace/${roomId}/__delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: oldPath }),
+    }).catch(() => {});
+    fetch(`/api/workspace/${roomId}/__save`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ files: next }),
+    }).catch(() => {});
+
     roomChannelRef.current?.send({ type: "broadcast", event: "files-update", payload: { files: next, userId: currentUserId } });
-  }, [files, activeFile, saveFilesToDb, currentUserId]);
+  }, [files, activeFile, saveFilesToDb, flushFilesSave, roomId, currentUserId]);
 
   const handleCodeChange = useCallback((newCode: string) => {
     setFiles((prev) =>
@@ -985,8 +1061,12 @@ export default function RoomPage() {
 
   // ── Run code ──
   const [triggerRun, setTriggerRun] = useState(0);
+  const lastRunTriggerTimeRef = useRef(0);
   const [terminalAction, setTerminalAction] = useState<{ type: "new" | "split" | "kill" | "clear"; timestamp: number } | null>(null);
   function handleRunCode() {
+    const now = Date.now();
+    if (now - lastRunTriggerTimeRef.current < 1200) return;
+    lastRunTriggerTimeRef.current = now;
     setTerminalOpen(true);
     setTriggerRun((p) => p + 1);
   }
@@ -1210,6 +1290,8 @@ export default function RoomPage() {
             onTabSelect={handleFileSelect}
             onTabClose={handleTabClose}
             onOpenLiveServer={handleToggleLiveServer}
+            isLiveServerOn={isLiveServerOn}
+            liveServerPort={liveServerPortState}
           />
 
           {/* Breadcrumb */}
@@ -1232,7 +1314,9 @@ export default function RoomPage() {
             <div className="relative" style={{ zIndex: 5, flexShrink: 0 }}>
               <TerminalPanel
                 onClose={() => setTerminalOpen(false)}
-                roomId={room.id} codeRef={codeRef}
+                roomId={room.id}
+                roomName={roomName}
+                codeRef={codeRef}
                 language={currentLang} activeFileName={activeFile}
                 triggerRun={triggerRun}
                 terminalAction={terminalAction}

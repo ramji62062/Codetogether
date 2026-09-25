@@ -763,7 +763,7 @@ export default function ParticipantsCallPanel({
     joiningRef.current = true;
 
     if (!navigator.mediaDevices || !window.RTCPeerConnection) {
-      setError("This browser does not support WebRTC meetings.");
+      setError("This browser does not support live video meetings.");
       setConnState("error");
       joiningRef.current = false;
       return;
@@ -885,7 +885,7 @@ export default function ParticipantsCallPanel({
       });
 
     } catch {
-      setError("Failed to start the local WebRTC meeting.");
+      setError("Failed to start the live video meeting.");
       setConnState("error");
       joiningRef.current = false;
     }
