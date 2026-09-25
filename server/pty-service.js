@@ -561,10 +561,20 @@ function handleConnection(ws, req) {
         }
 
         case "files:sync":
-          if (msg.files && activeIoRef) {
-            activeIoRef.to(agentRoomId).emit("terminal:files-updated", { roomId: agentRoomId, files: msg.files });
+        case "files-sync": {
+          const files = msg.files || [];
+          for (const [key, subs] of browserSubscribers.entries()) {
+            if (key.startsWith(`${agentRoomId}:`)) {
+              for (const browserWs of subs) {
+                safeSend(browserWs, { type: "files-sync", roomId: agentRoomId, files });
+              }
+            }
+          }
+          if (activeIoRef) {
+            activeIoRef.to(agentRoomId).emit("terminal:files-updated", { roomId: agentRoomId, files });
           }
           break;
+        }
 
         case "pong":
           ws._lastPongAt = Date.now();
@@ -696,14 +706,21 @@ function handleConnection(ws, req) {
           break;
 
         case "get-files": {
-          const files = collectWorkspaceFiles(msg.roomId);
-          safeSend(ws, {
-            type: "files-sync",
-            roomId: msg.roomId,
-            files,
-          });
-          if (activeIoRef) {
-            activeIoRef.to(msg.roomId).emit("terminal:files-updated", { roomId: msg.roomId, files });
+          if (agent && agent.ws.readyState === agent.ws.OPEN) {
+            safeSend(agent.ws, {
+              type: "get-files",
+              roomId: msg.roomId,
+            });
+          } else {
+            const files = collectWorkspaceFiles(msg.roomId);
+            safeSend(ws, {
+              type: "files-sync",
+              roomId: msg.roomId,
+              files,
+            });
+            if (activeIoRef) {
+              activeIoRef.to(msg.roomId).emit("terminal:files-updated", { roomId: msg.roomId, files });
+            }
           }
           break;
         }

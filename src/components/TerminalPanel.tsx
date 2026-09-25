@@ -206,12 +206,19 @@ export default function TerminalPanel({
     setIsSyncing(true);
 
     const rt = runtimesRef.current.get(activeTabId);
-    if (rt?.mode === "local" && rt.ws && rt.ws.readyState === WebSocket.OPEN) {
-      rt.ws.send(JSON.stringify({
-        type: "get-files",
-        roomId: roomIdRef.current,
-      }));
+    if (rt?.ws && rt.ws.readyState === WebSocket.OPEN) {
+      try {
+        rt.ws.send(JSON.stringify({
+          type: "get-files",
+          roomId: roomIdRef.current,
+        }));
+      } catch {}
     }
+
+    // Safety timeout to prevent spinner from getting stuck
+    setTimeout(() => {
+      setIsSyncing(false);
+    }, 2500);
 
     try {
       const res = await fetch(`/api/workspace/${roomIdRef.current}/__files?t=${Date.now()}`, { cache: "no-store" });
@@ -575,7 +582,7 @@ export default function TerminalPanel({
                 }
                 return [...prev, { id: "preview-tab", title: `Port ${msg.port}`, terminalId: "preview", type: "preview" }];
               });
-            } else if (msg.type === "files-sync" && Array.isArray(msg.files)) {
+            } else if ((msg.type === "files-sync" || msg.type === "files:sync") && Array.isArray(msg.files)) {
               if (onFilesSyncRef.current && msg.files.length > 0) {
                 onFilesSyncRef.current(msg.files);
               }

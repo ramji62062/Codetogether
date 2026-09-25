@@ -902,6 +902,22 @@ function connectReverseTunnel(serverUrl, roomId) {
             break;
           }
 
+          case "get-files": {
+            try {
+              const files = listWorkspaceFiles();
+              if (ws.readyState === ws.OPEN) {
+                ws.send(JSON.stringify({
+                  type: "files-sync",
+                  roomId,
+                  files,
+                }));
+              }
+            } catch (err) {
+              console.warn("[agent] Failed to list workspace files:", err.message);
+            }
+            break;
+          }
+
           case "kill": {
             const session = sessions.get(terminalId);
             if (session) {
