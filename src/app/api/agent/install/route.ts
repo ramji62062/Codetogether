@@ -189,16 +189,16 @@ if [ "$(uname)" = "Darwin" ]; then
 </dict>
 </plist>
 PLIST_EOF
+  pkill -f "$HOME/.codetogether/agent.js" 2>/dev/null || true
+  sleep 0.5
   launchctl unload "$PLIST_PATH" 2>/dev/null || true
   launchctl load -w "$PLIST_PATH" 2>/dev/null || true
+else
+  # Linux: kill existing and launch with nohup
+  pkill -f "$HOME/.codetogether/agent.js" 2>/dev/null || true
+  sleep 0.5
+  nohup node "$HOME/.codetogether/agent.js" --server="${baseUrl}" --room="${roomId}" --pair-token="${pairToken}" > "$HOME/.codetogether/agent.log" 2>&1 &
 fi
-
-# Kill any existing agent to prevent duplicate processes
-pkill -f "$HOME/.codetogether/agent.js" 2>/dev/null || true
-sleep 0.5
-
-# Launch in background with server and room parameters
-nohup node "$HOME/.codetogether/agent.js" --server="${baseUrl}" --room="${roomId}" --pair-token="${pairToken}" > "$HOME/.codetogether/agent.log" 2>&1 &
 
 echo "✅ CodeTogether Local Terminal Companion installed and running permanently!"
 echo "✨ Your local terminal is now connected to CodeTogether for life!"

@@ -797,6 +797,7 @@ function connectReverseTunnel(serverUrl, roomId) {
   if (activeTunnelRetryTimer) clearTimeout(activeTunnelRetryTimer);
   if (activeTunnelKeepAliveTimer) clearInterval(activeTunnelKeepAliveTimer);
   if (activeTunnelWs) {
+    activeTunnelWs.isClosedIntentionally = true;
     detachTunnel(activeTunnelWs);
     try { activeTunnelWs.close(); } catch {}
     activeTunnelWs = null;
@@ -811,13 +812,18 @@ function connectReverseTunnel(serverUrl, roomId) {
   console.log(`\x1b[36m[Tunnel] Connecting to CodeTogether Room "${roomId}" at ${wsProto}//${host}...\x1b[0m`);
 
   function scheduleReconnect() {
+    if (activeTunnelRoomId !== roomId) return;
     clearTimeout(activeTunnelRetryTimer);
-    activeTunnelRetryTimer = setTimeout(connect, 2000);
+    activeTunnelRetryTimer = setTimeout(() => {
+      if (activeTunnelRoomId === roomId) connect();
+    }, 2000);
   }
 
   function connect() {
+    if (activeTunnelRoomId !== roomId) return;
     try {
       if (activeTunnelWs) {
+        activeTunnelWs.isClosedIntentionally = true;
         detachTunnel(activeTunnelWs);
         try { activeTunnelWs.close(); } catch {}
       }
@@ -918,6 +924,9 @@ function connectReverseTunnel(serverUrl, roomId) {
         clearInterval(activeTunnelKeepAliveTimer);
         detachTunnel(ws);
         if (activeTunnelWs === ws) activeTunnelWs = null;
+        if (ws.isClosedIntentionally || activeTunnelRoomId !== roomId) {
+          return;
+        }
         console.log(`\x1b[33m[Tunnel] Disconnected from room ${roomId}. Reconnecting in 2s...\x1b[0m`);
         scheduleReconnect();
       });

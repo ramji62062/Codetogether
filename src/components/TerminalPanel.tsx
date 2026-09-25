@@ -995,14 +995,7 @@ export default function TerminalPanel({
           return (
             <div 
               key={t.id} 
-              ref={(el) => { 
-                if (el) {
-                  containerRefs.current.set(t.id, el); 
-                  if (!runtimesRef.current.has(t.id)) {
-                    initTerminal(t.id, el);
-                  }
-                }
-              }}
+              ref={(el) => { if (el) containerRefs.current.set(t.id, el); }}
               onClick={() => {
                 const rt = runtimesRef.current.get(t.id);
                 try { rt?.term.focus(); } catch {}
