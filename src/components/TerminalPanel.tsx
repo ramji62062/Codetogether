@@ -765,14 +765,35 @@ export default function TerminalPanel({
     const rt = runtimesRef.current.get(activeTabId);
     if (!activeFileName) return;
     
+    const isHtml = language === "html" || activeFileName.endsWith(".html") || activeFileName.endsWith(".htm");
+    const htmlDir = activeFileName.includes("/") ? activeFileName.substring(0, activeFileName.lastIndexOf("/")) : ".";
+
     let cmd = "";
     if (language === "javascript" || activeFileName.endsWith(".js")) cmd = `node "${activeFileName}"`;
     else if (language === "python" || activeFileName.endsWith(".py")) cmd = `python3 "${activeFileName}"`;
     else if (language === "cpp" || activeFileName.endsWith(".cpp")) cmd = `g++ "${activeFileName}" && ./a.out`;
     else if (language === "java" || activeFileName.endsWith(".java")) cmd = `javac "${activeFileName}" && java "${activeFileName.replace(".java", "")}"`;
-    else cmd = `./"${activeFileName}"`;
+    else if (isHtml) {
+      cmd = `python3 -m http.server 5500 --directory "${htmlDir}" 2>/dev/null || python -m http.server 5500 --directory "${htmlDir}" 2>/dev/null || npx -y serve -p 5500 "${htmlDir}"`;
+    } else cmd = `./"${activeFileName}"`;
 
     const currentCode = codeRef.current || "";
+
+    // If HTML: ensure live preview tab is immediately activated
+    if (isHtml) {
+      const htmlPreviewUrl = `${window.location.origin}/api/workspace/${roomIdRef.current}/${encodeURI(activeFileName)}`;
+      setPreviewUrl(htmlPreviewUrl);
+      if (onServerReadyRef.current) {
+        onServerReadyRef.current(htmlPreviewUrl, 5500);
+      }
+      setTabs((prev) => {
+        if (prev.find((t) => t.type === "preview")) {
+          return prev.map((t) => (t.type === "preview" ? { ...t, title: "Live Preview" } : t));
+        }
+        return [...prev, { id: "preview-tab", title: "Live Preview", terminalId: "preview", type: "preview" }];
+      });
+      setActiveTabId("preview-tab");
+    }
 
     // 1. If Local companion / terminal WebSocket is active (or connecting):
     if (rt && rt.ws && (rt.ws.readyState === WebSocket.OPEN || rt.ws.readyState === WebSocket.CONNECTING)) {
@@ -800,7 +821,7 @@ export default function TerminalPanel({
           files: filesRef.current.map(f => ({
             name: f.name || f.path,
             path: f.path || f.name,
-            isFolder: Boolean(f.isFolder),
+            isFolder: Boolean(f.isFolder || f.language === "folder"),
             content: (f.name === activeFileName || f.path === activeFileName) ? currentCode : (f.content || "")
           }))
         }));
@@ -827,6 +848,11 @@ export default function TerminalPanel({
 
     // 3. Fallback: If not connected to local companion or WebContainer, EXECUTE THROUGH PISTON!
     if (rt) {
+      if (isHtml) {
+        const htmlPreviewUrl = `${window.location.origin}/api/workspace/${roomIdRef.current}/${encodeURI(activeFileName)}`;
+        rt.term.writeln(`\r\n\x1b[32m✔ [Live Server] Live preview running for ${activeFileName}\x1b[0m\r\n\x1b[36m🔗 Preview URL: ${htmlPreviewUrl}\x1b[0m\r\n`);
+        return;
+      }
       rt.term.writeln(`\r\n\x1b[36m⚡ [Piston Engine] Executing ${language || "code"} (${activeFileName})...\x1b[0m\r\n`);
       try {
         const res = await fetch("/api/run-code", {

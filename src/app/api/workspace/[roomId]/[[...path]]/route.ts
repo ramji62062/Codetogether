@@ -42,9 +42,11 @@ function mimeFor(path: string) {
 }
 
 function sanitize(rel: string): string | null {
+  if (!rel || rel === ".") return "";
   const clean = normalize(rel).replace(/^(\.\.(\/|\\|$))+/, "").replace(/^[\\/]+/, "");
   if (clean.includes("..")) return null;
-  return clean.replace(/\\/g, "/");
+  const result = clean.replace(/\\/g, "/");
+  return result === "." ? "" : result;
 }
 
 function notFound(message: string, status = 404) {
@@ -194,8 +196,9 @@ async function fromDatabase(roomId: string, relPath: string): Promise<Buffer | n
       .eq("id", roomId)
       .maybeSingle();
     const files: any[] = Array.isArray(data?.files_json) ? data!.files_json : [];
-    const wanted = relPath.replace(/\/+$/, "");
-    const hit = files.find((f) => !f.isFolder && String(f.path || f.name || "").replace(/\\/g, "/") === wanted);
+    const clean = (s: string) => String(s || "").replace(/\\/g, "/").replace(/^\/+|\/+$/g, "").replace(/^\.\//, "");
+    const wanted = clean(relPath);
+    const hit = files.find((f) => !f.isFolder && clean(f.path || f.name) === wanted);
     if (hit && typeof hit.content === "string") {
       if (hit.content.startsWith("data:") && hit.content.includes(";base64,")) {
         const base64Data = hit.content.split(";base64,").pop()!;
@@ -330,16 +333,49 @@ async function serveFile(roomId: string, rawPath: string): Promise<Response> {
 
   if (!buffer) {
     if (path === "index.html" || path === "") {
+      // 1. Search DB for any HTML file in the room
+      try {
+        const { data } = await supabase.from("rooms").select("files_json").eq("id", roomId).maybeSingle();
+        const dbFiles: any[] = Array.isArray(data?.files_json) ? data.files_json : [];
+        const anyHtml = dbFiles.find((f: any) => !f.isFolder && (String(f.path || f.name).endsWith(".html") || String(f.path || f.name).endsWith(".htm")));
+        if (anyHtml) {
+          const matched = String(anyHtml.path || anyHtml.name).replace(/\\/g, "/").replace(/^\/+/, "");
+          return serveFile(roomId, matched);
+        }
+      } catch {}
+
+      // 2. Search on disk recursively for any HTML file in this workspace
       const base = join(WORKSPACE_ROOT, roomId);
       try {
         if (existsSync(base)) {
-          const files = readdirSync(base);
-          const altHtml = files.find(f => f.endsWith(".html") || f.endsWith(".htm"));
-          if (altHtml) {
-            return serveFile(roomId, altHtml);
+          const findHtmlRecursively = (dir: string, currentRel = ""): string | null => {
+            const entries = readdirSync(dir, { withFileTypes: true });
+            for (const entry of entries) {
+              if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
+              const nextRel = currentRel ? `${currentRel}/${entry.name}` : entry.name;
+              const full = join(dir, entry.name);
+              if (entry.isDirectory()) {
+                const found = findHtmlRecursively(full, nextRel);
+                if (found) return found;
+              } else if (entry.isFile() && (entry.name === "index.html" || entry.name.endsWith(".html") || entry.name.endsWith(".htm"))) {
+                return nextRel;
+              }
+            }
+            return null;
+          };
+          const found = findHtmlRecursively(base);
+          if (found) {
+            return serveFile(roomId, found);
           }
         }
       } catch {}
+
+      // 3. Fallback: If an active dev server (e.g. Vite) is running on a port, redirect root to it
+      const activeServer = (global as any).__activeRoomServers?.get(roomId);
+      if (activeServer && activeServer.url) {
+        return Response.redirect(activeServer.url, 302);
+      }
+
       return renderLiveWorkspacePage(roomId);
     }
     return notFound(`Not found: ${path}`);
@@ -402,18 +438,6 @@ export async function GET(_req: Request, ctx: Ctx) {
   const { roomId, path } = ctx.params;
   if (!/^[a-zA-Z0-9_-]{4,64}$/.test(roomId || "")) return notFound("Invalid room", 400);
   const rel = (path || []).map((s) => decodeURIComponent(s)).join("/");
-
-  // Special internal endpoints (__files, __live_ping) must ALWAYS be served directly!
-  if (rel === "__files" || rel === "__live_ping") {
-    return serveFile(roomId, rel);
-  }
-
-  // 1. If an active server is running on a port for this room, redirect directly to that port!
-  const activeServer = (global as any).__activeRoomServers?.get(roomId);
-  if (activeServer && activeServer.url) {
-    const targetUrl = rel ? `${activeServer.url}/${rel}` : activeServer.url;
-    return Response.redirect(targetUrl, 302);
-  }
 
   return serveFile(roomId, rel);
 }

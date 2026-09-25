@@ -829,7 +829,7 @@ export default function RoomPage() {
   }, [executeOpenProject, files.length, projectName]);
 
   const handleToggleLiveServer = useCallback(async () => {
-    // If WebContainer has exposed a server port, use its preview URL
+    // If WebContainer or Terminal has exposed a server port, use its preview URL
     if (liveServerUrl) {
       window.open(liveServerUrl, "_blank");
       setIsLiveServerOn(true);
@@ -844,14 +844,23 @@ export default function RoomPage() {
     if (cleanActive.endsWith(".html") || cleanActive.endsWith(".htm")) {
       targetHtml = cleanActive;
     } else {
-      const foundHtml = files.find(f => !f.isFolder && (f.name.endsWith(".html") || f.name.endsWith(".htm")));
+      const foundHtml = files.find(f => !f.isFolder && (String(f.path || f.name).endsWith(".html") || String(f.path || f.name).endsWith(".htm")));
       targetHtml = foundHtml ? normalizePath(foundHtml.path || foundHtml.name) : "index.html";
     }
 
-    const previewUrl = `${window.location.origin}/api/workspace/${roomId}/${targetHtml}`;
+    // Persist current editor files to workspace disk so latest content is served
+    try {
+      await fetch(`/api/workspace/${roomId}/__save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ files }),
+      });
+    } catch {}
+
+    const previewUrl = `${window.location.origin}/api/workspace/${roomId}/${encodeURI(targetHtml)}`;
     window.open(previewUrl, "_blank");
     setIsLiveServerOn(true);
-    addToast(`Static preview opened (${targetHtml}) ⚡`, "success");
+    addToast(`Live Server opened (${targetHtml}) ⚡`, "success");
   }, [activeFile, addToast, files, roomId, liveServerUrl, liveServerPortState]);
 
   const handleFileCreate = useCallback((file: FileItem) => {
