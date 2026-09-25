@@ -7,7 +7,8 @@ import { io, type Socket } from "socket.io-client";
 import {
   Mic, MicOff, Video, VideoOff, PhoneOff, PhoneCall, AlertCircle, ChevronDown,
   ChevronUp, Maximize2, Minimize2, ScreenShare, Search, MoreHorizontal, Crown,
-  VolumeX, Trash2, UserPlus, Users, Wifi, WifiOff, GripHorizontal, Move, Minus, Pin
+  VolumeX, Trash2, UserPlus, Users, Wifi, WifiOff, GripHorizontal, Move, Minus, Pin,
+  LayoutGrid, Expand
 } from "lucide-react";
 
 type PresenceMember = { userId: string; name: string; avatar?: string | null };
@@ -157,9 +158,30 @@ export default function ParticipantsCallPanel({
   const [localStreamVersion, setLocalStreamVersion] = useState(0);
   const [speakingUsers, setSpeakingUsers] = useState<Record<string, boolean>>({});
   const [pinnedTile, setPinnedTile] = useState<string | null>(null);
+  const [focusedMemberId, setFocusedMemberId] = useState<string | null>(null);
+  const [showFilmstrip, setShowFilmstrip] = useState(true);
   const [floatingPos, setFloatingPos] = useState<{ x: number; y: number } | null>(null);
   const [floatingSize, setFloatingSize] = useState<{ w: number; h: number }>({ w: 480, h: 330 });
   const [isFloatingMinimized, setIsFloatingMinimized] = useState(false);
+
+  const handleFocusMember = useCallback((socketId: string) => {
+    setFocusedMemberId((prev) => (prev === socketId ? null : socketId));
+    if (!isFullscreen) {
+      onFullscreenChange(true);
+    }
+    if (isFloatingMinimized) {
+      setIsFloatingMinimized(false);
+    }
+  }, [isFullscreen, onFullscreenChange, isFloatingMinimized]);
+
+  const toggleBrowserFullscreen = useCallback(() => {
+    if (typeof document === "undefined") return;
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.().catch(() => {});
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  }, []);
   const [mounted, setMounted] = useState(false);
   const isDraggingRef = useRef(false);
   const dragStartRef = useRef<{ mouseX: number; mouseY: number; posX: number; posY: number }>({ mouseX: 0, mouseY: 0, posX: 0, posY: 0 });
@@ -896,6 +918,7 @@ export default function ParticipantsCallPanel({
     setConnState("idle");
     setCallParticipants({});
     setPinnedTile(null);
+    setFocusedMemberId(null);
     onFullscreenChange(false);
     if (screenOn) onScreenToggle(false);
   }, [cleanupCall, onFullscreenChange, onScreenToggle, screenOn]);
@@ -1113,6 +1136,23 @@ export default function ParticipantsCallPanel({
 
   // ── Pinned view: if pinned, show 1 large + strip of small ──
   const hasPinned = pinnedTile && tiles.length > 1 && tiles[0]?.socketId === pinnedTile;
+
+  // ── Focused Individual Member Fullscreen ──
+  const focusedTile = useMemo(() => {
+    if (!focusedMemberId) return null;
+    return tiles.find((t) => t.socketId === focusedMemberId) || null;
+  }, [tiles, focusedMemberId]);
+
+  const otherTiles = useMemo(() => {
+    if (!focusedTile) return [];
+    return tiles.filter((t) => t.socketId !== focusedTile.socketId);
+  }, [tiles, focusedTile]);
+
+  useEffect(() => {
+    if (focusedMemberId && !tiles.some((t) => t.socketId === focusedMemberId)) {
+      setFocusedMemberId(null);
+    }
+  }, [tiles, focusedMemberId]);
 
   return (
     <div style={{
@@ -1335,7 +1375,197 @@ export default function ParticipantsCallPanel({
 
                     {/* Video Tiles Grid */}
                     <div className="relative overflow-hidden" style={{ flex: 1, minHeight: 0 }}>
-                      {hasPinned ? (
+                      {focusedTile ? (
+                        /* ── Focused Individual Member Fullscreen View ── */
+                        <div className="relative w-full h-full flex flex-col bg-black overflow-hidden">
+                          {/* Top Header Overlay for Focused View */}
+                          <div
+                            style={{
+                              position: "absolute",
+                              top: 10,
+                              left: 12,
+                              right: 12,
+                              zIndex: 50,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              pointerEvents: "none",
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                background: "rgba(10, 10, 16, 0.8)",
+                                backdropFilter: "blur(12px)",
+                                padding: "6px 14px",
+                                borderRadius: 20,
+                                border: "1px solid rgba(255, 255, 255, 0.15)",
+                                color: "#fff",
+                                fontSize: 12,
+                                fontWeight: 600,
+                                pointerEvents: "auto",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  width: 8,
+                                  height: 8,
+                                  borderRadius: "50%",
+                                  background: focusedTile.isSpeaking ? "#22c55e" : "#38bdf8",
+                                  boxShadow: focusedTile.isSpeaking ? "0 0 8px #22c55e" : "0 0 6px #38bdf8",
+                                }}
+                              />
+                              <span>{focusedTile.name}</span>
+                              {focusedTile.screenOn && (
+                                <span
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 4,
+                                    fontSize: 10,
+                                    padding: "2px 7px",
+                                    borderRadius: 10,
+                                    background: "rgba(192, 132, 252, 0.2)",
+                                    color: "#c084fc",
+                                    border: "1px solid rgba(192, 132, 252, 0.3)",
+                                  }}
+                                >
+                                  <ScreenShare size={10} /> Presenting Screen
+                                </span>
+                              )}
+                            </div>
+
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, pointerEvents: "auto" }}>
+                              {otherTiles.length > 0 && (
+                                <button
+                                  onClick={() => setShowFilmstrip((p) => !p)}
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 5,
+                                    background: "rgba(18, 18, 24, 0.85)",
+                                    backdropFilter: "blur(10px)",
+                                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                                    color: showFilmstrip ? "#38bdf8" : "#94a3b8",
+                                    padding: "6px 12px",
+                                    borderRadius: 16,
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                  }}
+                                  title={showFilmstrip ? "Hide participants strip" : "Show participants strip"}
+                                >
+                                  <Users size={12} />
+                                  {showFilmstrip ? "Hide Others" : `Show Others (${otherTiles.length})`}
+                                </button>
+                              )}
+
+                              <button
+                                onClick={toggleBrowserFullscreen}
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  background: "rgba(18, 18, 24, 0.85)",
+                                  backdropFilter: "blur(10px)",
+                                  border: "1px solid rgba(255, 255, 255, 0.15)",
+                                  color: "#fff",
+                                  width: 30,
+                                  height: 30,
+                                  borderRadius: "50%",
+                                  cursor: "pointer",
+                                }}
+                                title="Toggle Monitor Fullscreen"
+                              >
+                                <Expand size={13} />
+                              </button>
+
+                              <button
+                                onClick={() => setFocusedMemberId(null)}
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 6,
+                                  background: "#2563eb",
+                                  border: "1px solid #3b82f6",
+                                  color: "#fff",
+                                  padding: "6px 14px",
+                                  borderRadius: 16,
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  cursor: "pointer",
+                                  boxShadow: "0 4px 14px rgba(37, 99, 235, 0.4)",
+                                }}
+                                title="Exit individual full screen and return to grid"
+                              >
+                                <LayoutGrid size={13} /> Grid View
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Full Screen Member Video */}
+                          <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
+                            <VideoTile
+                              peer={focusedTile}
+                              muted={focusedTile.socketId === "local"}
+                              isFullscreen={isFullscreen}
+                              isFocused={true}
+                              onToggleFocus={() => setFocusedMemberId(null)}
+                            />
+                          </div>
+
+                          {/* Mini Filmstrip of Other Participants */}
+                          {showFilmstrip && otherTiles.length > 0 && (
+                            <div
+                              style={{
+                                position: "absolute",
+                                bottom: isFullscreen ? 86 : 60,
+                                left: "50%",
+                                transform: "translateX(-50%)",
+                                zIndex: 40,
+                                display: "flex",
+                                gap: 8,
+                                padding: "6px 8px",
+                                background: "rgba(10, 10, 16, 0.85)",
+                                backdropFilter: "blur(16px)",
+                                borderRadius: 14,
+                                border: "1px solid rgba(255, 255, 255, 0.12)",
+                                boxShadow: "0 8px 30px rgba(0,0,0,0.6)",
+                                maxWidth: "90%",
+                                overflowX: "auto",
+                              }}
+                            >
+                              {otherTiles.map((tile) => (
+                                <div
+                                  key={tile.socketId}
+                                  onClick={() => setFocusedMemberId(tile.socketId)}
+                                  style={{
+                                    width: 110,
+                                    height: 68,
+                                    flexShrink: 0,
+                                    cursor: "pointer",
+                                    borderRadius: 8,
+                                    overflow: "hidden",
+                                    border: tile.socketId === focusedMemberId ? "2px solid #38bdf8" : "1px solid rgba(255,255,255,0.15)",
+                                    transition: "transform 0.15s, border-color 0.15s",
+                                  }}
+                                  title={`Click to view ${tile.name} in full screen`}
+                                >
+                                  <VideoTile
+                                    peer={tile}
+                                    muted={tile.socketId === "local"}
+                                    isFullscreen={isFullscreen}
+                                    compact
+                                    onToggleFocus={() => setFocusedMemberId(tile.socketId)}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : hasPinned ? (
                         <div className="h-full flex flex-col gap-[4px] p-[4px]" style={{ boxSizing: "border-box" }}>
                           <div style={{ flex: 1, minHeight: 0 }}>
                             <VideoTile
@@ -1344,6 +1574,7 @@ export default function ParticipantsCallPanel({
                               isPinned
                               onPin={() => setPinnedTile(null)}
                               isFullscreen={isFullscreen}
+                              onToggleFocus={() => handleFocusMember(tiles[0].socketId)}
                             />
                           </div>
                           {tiles.length > 1 && (
@@ -1355,6 +1586,7 @@ export default function ParticipantsCallPanel({
                                   muted={tile.socketId === "local"}
                                   onPin={() => setPinnedTile(tile.socketId)}
                                   isFullscreen={isFullscreen}
+                                  onToggleFocus={() => handleFocusMember(tile.socketId)}
                                 />
                               ))}
                             </div>
@@ -1369,6 +1601,7 @@ export default function ParticipantsCallPanel({
                               muted={tile.socketId === "local"}
                               onPin={() => setPinnedTile(tile.socketId === pinnedTile ? null : tile.socketId)}
                               isFullscreen={isFullscreen}
+                              onToggleFocus={() => handleFocusMember(tile.socketId)}
                             />
                           ))}
                           {tiles.length === 0 && <div className="text-[12px]" style={{ color: "#555", display: "grid", placeItems: "center" }}>Waiting for participants...</div>}
@@ -1483,6 +1716,7 @@ export default function ParticipantsCallPanel({
               {filteredMembersInCall.map((member) => {
                 const isSelf = member.userId === currentUserId;
                 const peer = activeRemoteCallUsers.find((p) => p.userId === member.userId || p.name.toLowerCase() === member.name.toLowerCase());
+                const targetSocketId = isSelf ? "local" : peer?.socketId;
                 return (
                   <MemberRow
                     key={member.userId}
@@ -1500,6 +1734,7 @@ export default function ParticipantsCallPanel({
                     onMuteAudio={handleMuteRemoteAudio}
                     onMuteVideo={handleMuteRemoteVideo}
                     onKick={handleKickParticipant}
+                    onFocusMember={targetSocketId ? () => handleFocusMember(targetSocketId) : undefined}
                   />
                 );
               })}
@@ -1546,12 +1781,24 @@ export default function ParticipantsCallPanel({
 
 // ── Video Tile Component ──
 
-function VideoTile({ peer, muted, isPinned, onPin, isFullscreen }: {
+function VideoTile({
+  peer,
+  muted,
+  isPinned,
+  onPin,
+  isFullscreen,
+  isFocused,
+  onToggleFocus,
+  compact = false,
+}: {
   peer: ParticipantCallState;
   muted?: boolean;
   isPinned?: boolean;
   onPin?: () => void;
   isFullscreen?: boolean;
+  isFocused?: boolean;
+  onToggleFocus?: () => void;
+  compact?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const pipVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -1625,12 +1872,29 @@ function VideoTile({ peer, muted, isPinned, onPin, isFullscreen }: {
   return (
     <div
       className="pcp-video-tile"
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        onToggleFocus?.();
+      }}
+      title={compact ? `Click to view ${peer.name} in full screen` : onToggleFocus ? `Double click to toggle full screen for ${peer.name}` : undefined}
       style={{
-        position: "relative", minHeight: 0, overflow: "hidden", borderRadius: 8,
-        background: "#1a1a1a", flex: isPinned ? undefined : "1 1 0%",
-        height: "100%", width: "100%",
-        border: peer.isSpeaking ? "2px solid #22c55e" : isPinned ? "2px solid #4285f4" : "1px solid #2a2a2a",
+        position: "relative",
+        minHeight: 0,
+        overflow: "hidden",
+        borderRadius: compact ? 6 : 8,
+        background: "#1a1a1a",
+        flex: isPinned ? undefined : "1 1 0%",
+        height: "100%",
+        width: "100%",
+        border: peer.isSpeaking
+          ? "2px solid #22c55e"
+          : isFocused
+          ? "2px solid #38bdf8"
+          : isPinned
+          ? "2px solid #4285f4"
+          : "1px solid #2a2a2a",
         animation: peer.isSpeaking ? "pcp-ring 1.5s infinite" : undefined,
+        cursor: compact || onToggleFocus ? "pointer" : "default",
       }}
     >
       <audio ref={audioRef} autoPlay playsInline style={{ display: "none" }} />
@@ -1639,32 +1903,100 @@ function VideoTile({ peer, muted, isPinned, onPin, isFullscreen }: {
         <>
           <video
             ref={setVideoRef}
-            autoPlay playsInline muted={true}
-            style={{ width: "100%", height: "100%", objectFit: (mainTrack === screenTrack) ? "contain" : "cover", background: "#0a0a0a" }}
+            autoPlay
+            playsInline
+            muted={true}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: (mainTrack === screenTrack || isFocused) ? "contain" : (compact ? "cover" : "cover"),
+              background: "#0a0a0a",
+            }}
           />
           
-          {pipTrack && (
+          {pipTrack && !compact && (
             <div 
               onClick={(e) => { e.stopPropagation(); setIsCameraMain(!isCameraMain); }}
               title="Click to swap videos"
-              className="absolute rounded-[8px] overflow-hidden cursor-pointer" style={{ top: 16, right: 16, width: "25%", minWidth: 100, maxWidth: 200, aspectRatio: "16/9", border: "2px solid rgba(255, 255, 255, 0.4)", boxShadow: "0 10px 30px rgba(0, 0, 0, 0.8)", background: "#000", zIndex: 10, transition: "transform 0.2s" }}
-              onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.05)"}
-              onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+              className="absolute rounded-[8px] overflow-hidden cursor-pointer"
+              style={{
+                top: 16,
+                right: 16,
+                width: "25%",
+                minWidth: 100,
+                maxWidth: 200,
+                aspectRatio: "16/9",
+                border: "2px solid rgba(255, 255, 255, 0.4)",
+                boxShadow: "0 10px 30px rgba(0, 0, 0, 0.8)",
+                background: "#000",
+                zIndex: 10,
+                transition: "transform 0.2s",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.05)")}
+              onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
             >
               <video
                 ref={setPipVideoRef}
-                autoPlay playsInline muted={true}
-                className="w-full h-full" style={{ objectFit: "cover" }}
+                autoPlay
+                playsInline
+                muted={true}
+                className="w-full h-full"
+                style={{ objectFit: "cover" }}
               />
             </div>
           )}
         </>
       ) : (
         <div className="h-full flex flex-col items-center justify-center gap-[6px]" style={{ background: getAvatarColor(peer.name) }}>
-          <div style={{ width: isFullscreen ? 64 : 36, height: isFullscreen ? 64 : 36, borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: isFullscreen ? 24 : 14, fontWeight: 700, color: "#fff", border: peer.isSpeaking ? "2px solid #22c55e" : "2px solid rgba(255,255,255,0.3)" }}>
+          <div
+            style={{
+              width: compact ? 28 : (isFullscreen || isFocused ? 64 : 36),
+              height: compact ? 28 : (isFullscreen || isFocused ? 64 : 36),
+              borderRadius: "50%",
+              background: "rgba(255,255,255,0.2)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: compact ? 11 : (isFullscreen || isFocused ? 24 : 14),
+              fontWeight: 700,
+              color: "#fff",
+              border: peer.isSpeaking ? "2px solid #22c55e" : "2px solid rgba(255,255,255,0.3)",
+            }}
+          >
             {initials}
           </div>
         </div>
+      )}
+
+      {/* Top-right quick Fullscreen toggle button */}
+      {!compact && onToggleFocus && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFocus();
+          }}
+          title={isFocused ? "Exit full screen (Grid View)" : `View ${peer.name} in full screen`}
+          style={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            zIndex: 12,
+            width: 26,
+            height: 26,
+            borderRadius: "50%",
+            background: isFocused ? "#2563eb" : "rgba(0, 0, 0, 0.65)",
+            backdropFilter: "blur(6px)",
+            border: isFocused ? "1px solid #3b82f6" : "1px solid rgba(255, 255, 255, 0.2)",
+            color: "#fff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            transition: "all 0.15s ease",
+          }}
+        >
+          {isFocused ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+        </button>
       )}
 
       {/* Muted mic indicator overlay */}
@@ -1675,7 +2007,7 @@ function VideoTile({ peer, muted, isPinned, onPin, isFullscreen }: {
       )}
 
       {/* Connection state indicator */}
-      {peer.connectionState && peer.connectionState !== "connected" && peer.socketId !== "local" && (
+      {!compact && peer.connectionState && peer.connectionState !== "connected" && peer.socketId !== "local" && (
         <div style={{ position: "absolute", top: 32, left: 6, display: "flex", alignItems: "center", gap: 4, background: "rgba(0,0,0,0.7)", borderRadius: 4, padding: "2px 6px", fontSize: 9, color: peer.connectionState === "connecting" || peer.connectionState === "new" ? "#fbbf24" : "#f87171" }}>
           {peer.connectionState === "connecting" || peer.connectionState === "new" ? <Wifi size={9} /> : <WifiOff size={9} />}
           {peer.connectionState}
@@ -1685,10 +2017,15 @@ function VideoTile({ peer, muted, isPinned, onPin, isFullscreen }: {
       {/* Bottom info bar */}
       <div className="absolute flex justify-between items-center gap-[6px]" style={{ left: 6, bottom: 6, right: 6 }}>
         <span className="overflow-hidden rounded-[4px] p-[3px] text-[11px] font-medium" style={{ minWidth: 0, textOverflow: "ellipsis", whiteSpace: "nowrap", background: "rgba(0, 0, 0, 0.6)", color: "#fff", backdropFilter: "blur(4px)" }}>
-          {peer.name}
+          {compact ? peer.name.slice(0, 12) : peer.name}
         </span>
         <span className="flex gap-[4px] rounded-[4px] p-[3px]" style={{ background: "rgba(0, 0, 0, 0.6)", backdropFilter: "blur(4px)" }}>
-          {onPin && (
+          {!compact && onToggleFocus && (
+            <button onClick={(e) => { e.stopPropagation(); onToggleFocus(); }} title={isFocused ? "Exit full screen" : "View in full screen"} className="bg-transparent border-none p-[0px] cursor-pointer flex" style={{ color: isFocused ? "#38bdf8" : "#fff" }}>
+              {isFocused ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+            </button>
+          )}
+          {!compact && onPin && (
             <button onClick={(e) => { e.stopPropagation(); onPin(); }} title={isPinned ? "Unpin" : "Pin"} className="bg-transparent border-none p-[0px] cursor-pointer flex" style={{ color: "#fff" }}>
               <Pin size={12} color={isPinned ? "#60a5fa" : "#fff"} />
             </button>
@@ -1764,7 +2101,7 @@ function MemberRow({
   name, isSelf, micOn, cameraOn, screenSharing, inCall,
   isSpeaking, connectionState,
   isHostParticipant, isCurrentUserHost, onMuteAudio, onMuteVideo, onKick,
-  participantId
+  participantId, onFocusMember
 }: {
   name: string;
   isSelf?: boolean;
@@ -1780,6 +2117,7 @@ function MemberRow({
   onMuteVideo?: (id: string) => void;
   onKick?: (id: string) => void;
   participantId?: string;
+  onFocusMember?: () => void;
 }) {
   const [showDropdown, setShowDropdown] = useState(false);
   const initials = name.slice(0, 2).toUpperCase();
@@ -1845,6 +2183,41 @@ function MemberRow({
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 18, height: 18, borderRadius: 4, background: cameraOn ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)" }} title={cameraOn ? "Video Active" : "Video Off"}>
               {cameraOn ? <Video size={12} color="#22c55e" /> : <VideoOff size={12} color="#ef4444" />}
             </div>
+
+            {onFocusMember && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onFocusMember();
+                }}
+                title={`View ${name} in full screen`}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 20,
+                  height: 20,
+                  borderRadius: 4,
+                  background: "rgba(255, 255, 255, 0.08)",
+                  border: "1px solid rgba(255, 255, 255, 0.15)",
+                  color: "#94a3b8",
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = "#fff";
+                  e.currentTarget.style.background = "rgba(56, 189, 248, 0.25)";
+                  e.currentTarget.style.borderColor = "#38bdf8";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = "#94a3b8";
+                  e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)";
+                  e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.15)";
+                }}
+              >
+                <Maximize2 size={11} />
+              </button>
+            )}
 
             {isCurrentUserHost && !isSelf && participantId && (
               <div className="relative" onClick={(e) => e.stopPropagation()}>
