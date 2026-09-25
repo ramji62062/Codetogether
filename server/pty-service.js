@@ -57,6 +57,7 @@ const {
   getDevServerUrl,
   registerCleanupHook,
   touchActivity,
+  collectWorkspaceFiles,
 } = require("./terminal-service");
 const { validateTerminalAccess } = require("./terminal-auth");
 const { consumePairing } = require("./agent-pairing");
@@ -563,6 +564,9 @@ function handleConnection(ws, req) {
         case "files:sync":
         case "files-sync": {
           const files = msg.files || [];
+          try {
+            syncFilesToWorkspace(agentRoomId, files);
+          } catch {}
           for (const [key, subs] of browserSubscribers.entries()) {
             if (key.startsWith(`${agentRoomId}:`)) {
               for (const browserWs of subs) {

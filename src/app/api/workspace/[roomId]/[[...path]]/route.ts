@@ -261,7 +261,7 @@ async function serveFile(roomId: string, rawPath: string): Promise<Response> {
         if (!existsSync(dir)) return;
         const entries = readdirSync(dir, { withFileTypes: true });
         for (const entry of entries) {
-          if (entry.name === "node_modules" || entry.name === ".git" || entry.name.startsWith(".")) continue;
+          if (entry.name === "node_modules" || entry.name === ".git" || entry.name === "Library" || entry.name === ".npm" || entry.name.startsWith(".")) continue;
           const nextRel = rel ? `${rel}/${entry.name}` : entry.name;
           const full = join(dir, entry.name);
           if (entry.isDirectory()) {
@@ -281,8 +281,25 @@ async function serveFile(roomId: string, rawPath: string): Promise<Response> {
           }
         }
       } catch {}
-    }
+    };
     scanDir(base);
+
+    if (files.length === 0) {
+      try {
+        const { data } = await supabase.from("rooms").select("files_json").eq("id", roomId).maybeSingle();
+        if (Array.isArray(data?.files_json) && data.files_json.length > 0) {
+          return new Response(JSON.stringify({ ok: true, files: data.files_json }), {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+              "Cache-Control": "no-store, no-cache, must-revalidate",
+              "Access-Control-Allow-Origin": "*",
+            },
+          });
+        }
+      } catch {}
+    }
+
     return new Response(JSON.stringify({ ok: true, files }), {
       status: 200,
       headers: {

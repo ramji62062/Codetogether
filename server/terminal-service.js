@@ -8,7 +8,7 @@ const WORKSPACE_ROOT = join(process.cwd(), "temp_workspaces");
 const IDLE_TIMEOUT_MS = Number(process.env.TERMINAL_IDLE_TIMEOUT_MS || 30 * 60 * 1000);
 const REAPER_INTERVAL_MS = 60_000;
 const MAX_SYNC_FILE_SIZE = 512 * 1024;
-const IGNORE_DIRS = new Set(["node_modules", ".git", ".next", "dist", "build", "coverage", ".turbo", ".cache"]);
+const IGNORE_DIRS = new Set(["node_modules", ".git", ".next", "dist", "build", "coverage", ".turbo", ".cache", "Library", ".npm", ".yarn", ".pnpm-store"]);
 const IGNORE_FILES = new Set(["package-lock.json", "yarn.lock", "pnpm-lock.yaml"]);
 
 // Load-tested: `npm install vite react react-dom` peaks at ~364MB; vite dev

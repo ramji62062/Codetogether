@@ -179,7 +179,7 @@ function getLangFromPath(filePath) {
 }
 
 const IGNORE_DIRS = new Set([
-  "node_modules", ".git", ".next", "dist", "build", "coverage", ".turbo", ".cache", ".idea", ".vscode",
+  "node_modules", ".git", ".next", "dist", "build", "coverage", ".turbo", ".cache", ".idea", ".vscode", "Library", ".npm", ".yarn", ".pnpm-store"
 ]);
 const IGNORE_FILES = new Set([
   ".DS_Store", "Thumbs.db", ".codetogether-agent.json",
@@ -746,6 +746,23 @@ wss.on("connection", (ws, req) => {
           safeSend({ type: "file:delete:ok", path: msg.path });
         } catch (err) {
           safeSend({ type: "file:delete:error", path: msg.path, error: err.message });
+        }
+        break;
+      }
+
+      case "get-files": {
+        try {
+          const files = listWorkspaceFiles();
+          safeSend({ type: "files-sync", roomId: msg.roomId || options.room, files });
+        } catch (err) {
+          safeSend({ type: "files-sync", roomId: msg.roomId || options.room, files: [] });
+        }
+        break;
+      }
+
+      case "sync-workspace": {
+        if (Array.isArray(msg.files)) {
+          syncIncomingFiles(msg.files);
         }
         break;
       }

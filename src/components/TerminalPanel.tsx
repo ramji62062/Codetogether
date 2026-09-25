@@ -202,18 +202,57 @@ export default function TerminalPanel({
   }, [files]);
 
   // Sync files between Terminal and Workspace
+  // Sync files between Terminal and Workspace
   const handleSyncFiles = async () => {
     setIsSyncing(true);
 
     const rt = runtimesRef.current.get(activeTabId);
     if (rt?.ws && rt.ws.readyState === WebSocket.OPEN) {
       try {
+        // Two-way sync: Push editor files to workspace
+        rt.ws.send(JSON.stringify({
+          type: "sync-workspace",
+          roomId: roomIdRef.current,
+          files: (filesRef.current || []).map((f) => ({
+            name: f.name || f.path,
+            path: f.path || f.name,
+            content: f.content || "",
+            isFolder: Boolean(f.isFolder),
+          })),
+        }));
+        // Pull latest files from workspace terminal
         rt.ws.send(JSON.stringify({
           type: "get-files",
           roomId: roomIdRef.current,
         }));
       } catch {}
     }
+
+    // Direct check with local companion daemon on 127.0.0.1:8765 if running
+    try {
+      const localWs = new WebSocket("ws://127.0.0.1:8765");
+      localWs.onopen = () => {
+        localWs.send(JSON.stringify({
+          type: "get-files",
+          roomId: roomIdRef.current,
+        }));
+      };
+      localWs.onmessage = (evt) => {
+        try {
+          const msg = JSON.parse(evt.data);
+          const incoming = msg.files || [];
+          if (Array.isArray(incoming) && incoming.length > 0 && onFilesSyncRef.current) {
+            onFilesSyncRef.current(incoming);
+            setIsSyncing(false);
+          }
+        } catch {}
+        try { localWs.close(); } catch {}
+      };
+      localWs.onerror = () => {
+        try { localWs.close(); } catch {}
+      };
+      setTimeout(() => { try { localWs.close(); } catch {} }, 1500);
+    } catch {}
 
     // Safety timeout to prevent spinner from getting stuck
     setTimeout(() => {
@@ -226,6 +265,7 @@ export default function TerminalPanel({
         const data = await res.json();
         if (Array.isArray(data.files) && data.files.length > 0 && onFilesSyncRef.current) {
           onFilesSyncRef.current(data.files);
+          setIsSyncing(false);
         }
       }
     } catch {}
@@ -236,7 +276,7 @@ export default function TerminalPanel({
         try {
           const entries = await webcontainerRef.current!.fs.readdir(dir, { withFileTypes: true });
           for (const entry of entries) {
-            if (entry.name === "node_modules" || entry.name === ".git") continue;
+            if (entry.name === "node_modules" || entry.name === ".git" || entry.name === "Library") continue;
             const fullPath = basePath ? `${basePath}/${entry.name}` : entry.name;
             if (entry.isDirectory()) {
               items.push({ name: entry.name, path: fullPath, isFolder: true, content: "", language: "folder" });
@@ -273,8 +313,6 @@ export default function TerminalPanel({
         }
       } catch {}
     }
-
-    setTimeout(() => setIsSyncing(false), 500);
   };
 
   // Init Terminal tab with automatic reliable connection
@@ -582,7 +620,7 @@ export default function TerminalPanel({
                 }
                 return [...prev, { id: "preview-tab", title: `Port ${msg.port}`, terminalId: "preview", type: "preview" }];
               });
-            } else if ((msg.type === "files-sync" || msg.type === "files:sync") && Array.isArray(msg.files)) {
+            } else if ((msg.type === "files-sync" || msg.type === "files:sync" || msg.type === "auth:ok") && Array.isArray(msg.files)) {
               if (onFilesSyncRef.current && msg.files.length > 0) {
                 onFilesSyncRef.current(msg.files);
               }
